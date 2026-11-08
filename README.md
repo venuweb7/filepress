@@ -33,5 +33,5 @@ Settings are environment variables; see `.env.example`. Design notes in `docs/DE
 
 ## License
 
-MIT for this code. The engines keep their own licences (Ghostscript AGPL, LibreOffice MPL, qpdf Apache-2.0,
-Tesseract Apache-2.0, OCRmyPDF MPL, img2pdf LGPL, pdf2docx AGPL).
+MIT for this code (`LICENSE`). Bundled fonts are under the SIL Open Font License and the engines keep their own
+licences; see `licenses/README.md`.
