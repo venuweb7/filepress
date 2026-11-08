@@ -5,17 +5,23 @@ import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { config } from './config.js';
+import { config, validateConfig } from './config.js';
 import { tools, toolSummary } from './tools/index.js';
-import { initJobs, createJob, getJob, enqueue, deleteJob, isJobId, jobDir, newJobId, makeJobDir, publicView, queueStats } from './jobs.js';
+import { initJobs, createJob, getJob, enqueue, deleteJob, isJobId, jobDir, newJobId, makeJobDir, dropPending, publicView, queueStats, isBusy } from './jobs.js';
 import { KINDS, extOf, safeName } from './tools/common.js';
 import { ToolError } from './run.js';
+
+const problems = validateConfig();
+if (problems.length) { for (const p of problems) console.error('Config error:', p); process.exit(1); }
+// Converters run as another user: everything we create must be writable by the shared group.
+if (config.workerUser) process.umask(0o007);
 
 const app = express();
 app.disable('x-powered-by');
 if (config.trustProxy) app.set('trust proxy', 1);
 
 class ClientError extends Error { constructor(status, message) { super(message); this.status = status; } }
+const gone = `This job does not exist any more. Results are wiped after ${config.retentionMin} minutes.`;
 
 /* ---------- security headers ---------- */
 app.use((req, res, next) => {
@@ -25,29 +31,34 @@ app.use((req, res, next) => {
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Resource-Policy': 'same-origin',
   });
+  if (req.secure) res.set('Strict-Transport-Security', 'max-age=15552000');
   if (req.path.startsWith('/api/')) res.set('Cache-Control', 'no-store');
   next();
 });
 
 /* ---------- sessions: a signed, httpOnly cookie identifies the browser and remembers the unlock ---------- */
 const secret = config.sessionSecret || crypto.randomBytes(32).toString('hex');
-const sign = s => crypto.createHmac('sha256', secret).update(s).digest('base64url');
+// The access code takes part in the signature, so changing the code logs everyone out.
+const codeTag = crypto.createHash('sha256').update('code:' + config.accessCode).digest('base64url').slice(0, 16);
+const sign = s => crypto.createHmac('sha256', secret).update(s + '|' + codeTag).digest('base64url');
 const COOKIE = 'ps';
+const safeEqual = (a, b) => { const A = Buffer.from(String(a)), B = Buffer.from(String(b)); return A.length === B.length && crypto.timingSafeEqual(A, B); };
 function readCookie(req) {
   const raw = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith(COOKIE + '='));
   if (!raw) return null;
   const [sid, flag, mac] = raw.slice(COOKIE.length + 1).split('.');
   if (!sid || !flag || !mac || !/^[a-f0-9]{32}$/.test(sid) || !/^[01]$/.test(flag)) return null;
-  const expect = sign(sid + flag);
-  if (mac.length !== expect.length || !crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expect))) return null;
+  if (!safeEqual(mac, sign(sid + flag))) return null;
   return { sid, unlocked: flag === '1' };
 }
 function writeCookie(req, res, sid, unlocked) {
   const flag = unlocked ? '1' : '0';
   const attrs = [`${COOKIE}=${sid}.${flag}.${sign(sid + flag)}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${30 * 86400}`];
   if (req.secure) attrs.push('Secure');
-  res.append('Set-Cookie', attrs.join('; '));
+  res.setHeader('Set-Cookie', attrs.join('; ')); // one cookie per response; a later write replaces an earlier one
 }
 app.use((req, res, next) => {
   let s = readCookie(req);
@@ -65,30 +76,35 @@ app.use(express.static(config.publicDir, {
 }));
 
 /* ---------- small JSON endpoints ---------- */
-const limits = { maxFileMb: config.maxFileMb, maxFiles: config.maxFiles, retentionMin: config.retentionMin };
+const limits = { maxFileMb: config.maxFileMb, maxFiles: config.maxFiles, maxRequestMb: config.maxRequestMb, retentionMin: config.retentionMin };
 app.get('/healthz', (req, res) => res.json({ ok: true, ...queueStats() }));
 app.get('/api/session', (req, res) => res.json({ locked: !req.unlocked, appName: config.appName, limits, tools: toolSummary }));
 
-const unlockLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'Too many tries. Wait a few minutes.' } });
-app.post('/api/unlock', unlockLimiter, express.json({ limit: '2kb' }), (req, res) => {
+const rl = (limit, message, keyGenerator) => rateLimit({ windowMs: 15 * 60_000, limit, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: message }, ...(keyGenerator ? { keyGenerator } : {}) });
+const unlockPerIp = rl(10, 'Too many tries. Wait a few minutes.');
+const unlockGlobal = rl(100, 'Too many wrong codes from everywhere. Unlocking is paused for a while.', () => 'all');
+app.post('/api/unlock', unlockPerIp, unlockGlobal, express.json({ limit: '2kb' }), (req, res) => {
   if (!config.accessCode) return res.status(204).end();
   const given = String(req.body?.code || '');
   const a = crypto.createHash('sha256').update(given).digest(), b = crypto.createHash('sha256').update(config.accessCode).digest();
   if (!given || !crypto.timingSafeEqual(a, b)) return res.status(401).json({ error: 'That code is not right.' });
-  writeCookie(req, res, req.sid, true);
+  // Fresh session id on unlock (no fixation), flagged as unlocked.
+  writeCookie(req, res, crypto.randomBytes(16).toString('hex'), true);
   res.status(204).end();
 });
 
 /* ---------- uploads ---------- */
 const kindOfExt = ext => Object.keys(KINDS).find(k => KINDS[k].exts.includes(ext)) || null;
+const isZip = b => b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
+const isOle = b => b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0;
 const MAGIC = {
   pdf: b => b.subarray(0, 5).toString('latin1') === '%PDF-',
   jpg: b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff, jpeg: b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
-  png: b => b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])),
-  docx: b => b[0] === 0x50 && b[1] === 0x4b, xlsx: b => b[0] === 0x50 && b[1] === 0x4b, pptx: b => b[0] === 0x50 && b[1] === 0x4b,
-  odt: b => b[0] === 0x50 && b[1] === 0x4b, ods: b => b[0] === 0x50 && b[1] === 0x4b, odp: b => b[0] === 0x50 && b[1] === 0x4b,
-  doc: b => b[0] === 0xd0 && b[1] === 0xcf, xls: b => b[0] === 0xd0 && b[1] === 0xcf, ppt: b => b[0] === 0xd0 && b[1] === 0xcf,
-  rtf: b => b.subarray(0, 5).toString('latin1') === '{\\rtf', txt: () => true,
+  png: b => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  docx: isZip, xlsx: isZip, pptx: isZip, odt: isZip, ods: isZip, odp: isZip,
+  doc: isOle, xls: isOle, ppt: isOle,
+  rtf: b => b.subarray(0, 5).toString('latin1') === '{\\rtf',
+  txt: b => !b.subarray(0, 8).includes(0),   // plain text has no NUL bytes
 };
 async function sniff(file) {
   const fh = await fs.open(file, 'r');
@@ -105,14 +121,16 @@ const upload = multer({
 });
 const multerMessage = e => e.code === 'LIMIT_FILE_SIZE' ? `Each file can be at most ${config.maxFileMb} MB.` : e.code === 'LIMIT_FILE_COUNT' ? `Up to ${config.maxFiles} files at once.` : e.code === 'LIMIT_UNEXPECTED_FILE' ? 'Unexpected upload field.' : 'The upload could not be read.';
 
-const jobsLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 60, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'Too many jobs in a short time. Please wait a little.' } });
+const jobsLimiter = rl(60, 'Too many jobs in a short time. Please wait a little.');
 
 app.post('/api/jobs', requireUnlocked, jobsLimiter, async (req, res, next) => {
+  const declared = parseInt(req.headers['content-length'] || '0', 10);
+  if (declared > config.maxRequestMb * 1024 * 1024) return res.status(413).json({ error: `One upload can be at most ${config.maxRequestMb} MB in total.` });
+  if (isBusy()) return res.status(503).json({ error: 'The server is busy right now. Try again in a minute.' });
   req.pendingId = newJobId();
   try { await makeJobDir(req.pendingId); } catch (e) { return next(e); }
   upload.array('files', config.maxFiles)(req, res, async err => {
-    const dir = jobDir(req.pendingId);
-    const fail = async (status, message) => { await fs.rm(dir, { recursive: true, force: true }); res.status(status).json({ error: message }); };
+    const fail = async (status, message) => { await dropPending(req.pendingId); res.status(status).json({ error: message }); };
     if (err) return fail(err instanceof ClientError ? err.status : 400, err instanceof ClientError ? err.message : err instanceof multer.MulterError ? multerMessage(err) : 'The upload could not be read.');
     try {
       const toolId = String(req.body.tool || '');
@@ -135,7 +153,8 @@ app.post('/api/jobs', requireUnlocked, jobsLimiter, async (req, res, next) => {
         const ext = extOf(prev.result.name), kind = kindOfExt(ext);
         if (!kind) return fail(400, 'That result cannot be fed into another tool.');
         const stored = `001-${safeName(prev.result.name)}`;
-        await fs.copyFile(path.join(jobDir(prev.id), 'out', prev.result.file), path.join(dir, 'in', stored));
+        try { await fs.copyFile(path.join(jobDir(prev.id), 'out', prev.result.file), path.join(jobDir(req.pendingId), 'in', stored)); }
+        catch { return fail(404, 'That earlier result is no longer available.'); }
         files.push({ name: safeName(prev.result.name), stored, size: prev.result.size, kind });
       }
       if (!files.length) return fail(400, 'Add a file first.');
@@ -144,7 +163,7 @@ app.post('/api/jobs', requireUnlocked, jobsLimiter, async (req, res, next) => {
       res.status(202).json(publicView(job));
     } catch (e) {
       if (e instanceof ToolError) return fail(400, e.message);
-      await fs.rm(dir, { recursive: true, force: true });
+      await dropPending(req.pendingId);
       next(e);
     }
   });
@@ -152,30 +171,33 @@ app.post('/api/jobs', requireUnlocked, jobsLimiter, async (req, res, next) => {
 
 const findJob = (req, res) => {
   const job = isJobId(req.params.id) ? getJob(req.params.id, req.sid) : null;
-  if (!job) res.status(404).json({ error: 'This job does not exist any more. Results are wiped after an hour.' });
+  if (!job) res.status(404).json({ error: gone });
   return job;
 };
 app.get('/api/jobs/:id', requireUnlocked, (req, res) => { const j = findJob(req, res); if (j) res.json(publicView(j)); });
-app.get('/api/jobs/:id/download', requireUnlocked, (req, res, next) => {
+app.get('/api/jobs/:id/download', requireUnlocked, async (req, res, next) => {
   const j = findJob(req, res); if (!j) return;
   if (j.status !== 'done') return res.status(409).json({ error: 'Not ready yet.' });
+  const file = path.join(jobDir(j.id), 'out', j.result.file);
+  try { await fs.access(file); } catch { return res.status(404).json({ error: gone }); }
   res.set('Cache-Control', 'no-store');
-  res.download(path.join(jobDir(j.id), 'out', j.result.file), j.result.name, err => { if (err && !res.headersSent) next(err); });
+  res.download(file, j.result.name, err => { if (err && !res.headersSent) next(err); });
 });
-app.delete('/api/jobs/:id', requireUnlocked, async (req, res, next) => {
+app.delete('/api/jobs/:id', requireUnlocked, async (req, res) => {
   const j = findJob(req, res); if (!j) return;
-  try { await deleteJob(j.id); res.status(204).end(); } catch (e) { next(e); }
+  await deleteJob(j.id);
+  res.status(204).end();
 });
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
   if (err instanceof ClientError) return res.status(err.status).json({ error: err.message });
   console.error(err);
-  res.status(500).json({ error: 'Something went wrong on the server.' });
+  if (!res.headersSent) res.status(500).json({ error: 'Something went wrong on the server.' });
 });
 
 await initJobs();
 const server = app.listen(config.port, () => {
-  console.log(`${config.appName} listening on :${config.port} · jobs in ${config.jobsDir} · retention ${config.retentionMin} min · passcode ${config.accessCode ? 'ON' : 'off'}`);
+  console.log(`${config.appName} listening on :${config.port} · jobs in ${config.jobsDir} · retention ${config.retentionMin} min · passcode ${config.accessCode ? 'ON' : 'off'} · converters as ${config.workerUser || 'same user'}`);
 });
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); });

@@ -2,12 +2,13 @@
 import fs from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
 import { run } from '../run.js';
+import { config } from '../config.js';
 import { baseOf, bool, checkKind, inPath, outPath, timeouts, tmpPath } from './common.js';
 
 export default {
-  id: 'merge', name: 'Merge', accepts: 'pdf', minFiles: 2, maxFiles: 20,
+  id: 'merge', name: 'Merge', accepts: 'pdf', minFiles: 2, maxFiles: config.maxFiles,
   parseOptions: o => ({ divider: bool(o.divider, false) }),
-  checkInputs: files => checkKind(files, 'pdf', { min: 2, max: 20 }),
+  checkInputs: files => checkKind(files, 'pdf', { min: 2, max: config.maxFiles }),
   async run({ job, dir, report }) {
     const out = `${baseOf(job.files[0].name)}-merged.pdf`;
     const pages = [];

@@ -137,6 +137,11 @@ test('rejects a fake PDF, unknown tools and bad options', async () => {
   assert.equal(badOpt.status, 400); assert.match((await badOpt.json()).error, /pages you want/);
   const noFile = await submit('compress', []);
   assert.equal(noFile.status, 400);
+  // an unknown choice is refused, never silently swapped for the default
+  const badAngle = await submit('rotate', ['text.pdf'], { angle: '--version' });
+  assert.equal(badAngle.status, 400); assert.match((await badAngle.json()).error, /not one of the choices/);
+  const badLevel = await submit('compress', ['text.pdf'], { level: 'tiny' });
+  assert.equal(badLevel.status, 400);
 });
 
 test('compress makes the PDF smaller and keeps the pages', async () => {
@@ -186,6 +191,23 @@ test('rotate, protect, page numbers, sign', async () => {
   const sig2 = await runTool('sign', ['text.pdf'], { mode: 'image', image: dataUrl, pages: 'all', pos: 'tl' });
   assert.equal(pages(sig2.out), 3);
   void png;
+});
+
+test('numbers land on rotated pages; single-part split is not zipped; bad N and non-Latin signature are refused', async () => {
+  const rot = await runTool('rotate', ['text.pdf'], { angle: '+90' });
+  const chained = await submit('numbers', [], { pos: 'bc', format: 'n/N' }, { from: rot.id });
+  const j = await waitDone((await chained.json()).id);
+  assert.equal(j.status, 'done');
+  const out = await download(j.id, j.result.name);
+  assert.match(pdfinfo(out), /Page rot:\s+90/);
+  assert.match(text(out), /2\s*\/\s*3/);   // pdftotext -layout may drop the spaces
+  const one = await runTool('split', ['scan.pdf'], { mode: 'each' });          // one page -> one PDF, no zip
+  assert.match(one.job.result.name, /\.pdf$/); assert.equal(pages(one.out), 1);
+  const badN = await submit('split', ['text.pdf'], { mode: 'every', every: '0' });
+  assert.equal(badN.status, 400);
+  const tel = await submit('sign', ['text.pdf'], { mode: 'text', text: 'నంద' });
+  const tj = await waitDone((await tel.json()).id);
+  assert.equal(tj.status, 'error'); assert.match(tj.error, /English letters/);
 });
 
 test('pictures: PDF -> JPG (zip) and JPG/PNG -> PDF', async () => {

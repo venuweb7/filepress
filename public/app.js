@@ -43,10 +43,12 @@ const S = {
   session: null,                // {locked, appName, limits, tools}
   files: [],                    // File objects waiting to be uploaded
   fromJob: null,                // {id, name, size} when chaining a previous result
-  tool: null, opt: {},          // chosen tool + its options
-  job: null, poll: null, timer: null, xhr: null,
+  tool: null, opts: {},         // chosen tool; options kept PER TOOL id so they never leak between tools
+  job: null, poll: null, timer: null, xhr: null, gen: 0,
 };
+const opt = () => (S.tool ? (S.opts[S.tool.id] ??= {}) : {});
 const serverTool = id => (S.session?.tools || []).find(t => t.id === id);
+const retention = () => S.session?.limits.retentionMin || 60;
 
 /* ---------- boot ---------- */
 async function loadSession() {
@@ -97,11 +99,16 @@ function inputKind() {
   return kinds.size === 1 ? [...kinds][0] : null;
 }
 const inputCount = () => (S.fromJob ? 1 : S.files.length);
-function fits(t) {
+/** Could this tool take the current files at all (right kind, not too many)? Used to dim tiles. */
+function kindFits(t) {
   const st = serverTool(t.id); if (!st) return true;
   const k = inputKind(), n = inputCount();
-  if (!n) return true;
-  return k === st.accepts && n >= Math.min(st.minFiles, 1) && n <= st.maxFiles;
+  return !n || (k === st.accepts && n <= st.maxFiles);
+}
+/** Can the job actually run right now (also enough files)? Used for the Run button. */
+function canRun(t) {
+  const st = serverTool(t.id); if (!st) return inputCount() > 0;
+  return kindFits(t) && inputCount() >= st.minFiles;
 }
 function suggestion() {
   if (S.tool || !inputCount()) return null;
@@ -114,8 +121,8 @@ function suggestion() {
 }
 function renderTiles1() {
   const sug = suggestion();
-  fillTiles($('#tiles1'), t => `#work/${t.id}`, t => (S.tool?.id === t.id ? ' on' : '') + (sug === t.id ? ' sug' : '') + (fits(t) ? '' : ' dim'));
-  $$('#tiles1 .tile.dim').forEach(el => { const st = serverTool(el.dataset.id); el.title = st ? `Needs ${KIND_LABEL[st.accepts]}${st.minFiles > 1 ? ` (${st.minFiles} or more)` : ''}` : ''; });
+  fillTiles($('#tiles1'), t => `#work/${t.id}`, t => (S.tool?.id === t.id ? ' on' : '') + (sug === t.id ? ' sug' : '') + (kindFits(t) ? '' : ' dim'));
+  $$('#tiles1 .tile.dim').forEach(el => { const st = serverTool(el.dataset.id); el.title = st ? `Needs ${KIND_LABEL[st.accepts]}${st.maxFiles === 1 ? ', one at a time' : ''}` : ''; });
   filter();
 }
 function filter() {
@@ -132,15 +139,21 @@ function setView(v) {
   window.scrollTo(0, 0);
   if (v === 'start') requestAnimationFrame(fitOrbit);
 }
-function stopPolling() { clearInterval(S.poll); S.poll = null; clearInterval(S.timer); S.timer = null; }
+function stopPolling() { S.gen++; clearInterval(S.poll); S.poll = null; clearInterval(S.timer); S.timer = null; }
 function route() {
   const h = location.hash || '#start';
   const [, view, arg] = h.match(/^#(\w+)(?:\/([\w-]+))?/) || [, 'start'];
   stopPolling();
-  if (view === 'work') { S.tool = arg ? TOOLS.find(t => t.id === arg) || null : null; setView('work'); renderWork(); if (arg && innerWidth <= 720) setTimeout(() => $('#opts').scrollIntoView({ behavior: 'smooth', block: 'start' }), 350); return; }
+  if (S.xhr && view !== 'run') { S.xhr.abort(); S.xhr = null; }   // leaving the run view cancels an upload in progress
+  if (view === 'work') {
+    const t = arg ? TOOLS.find(x => x.id === arg) || null : null;
+    S.tool = t; setView('work'); renderWork();
+    if (arg && innerWidth <= 720) setTimeout(() => $('#opts').scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+    return;
+  }
   if (view === 'run' && arg) { setView('run'); watchJob(arg); return; }
   if (view === 'done' && arg) { setView('done'); showDone(arg); return; }
-  S.files = []; S.fromJob = null; S.tool = null; S.opt = {}; S.job = null;
+  S.files = []; S.fromJob = null; S.tool = null; S.opts = {}; S.job = null;
   setView('start');
 }
 addEventListener('hashchange', route);
@@ -155,7 +168,7 @@ function addFiles(list) {
     if (S.files.length >= maxFiles) { skipped.push(`${f.name} (limit ${maxFiles} files)`); continue; }
     S.files.push(f); added++;
   }
-  S.fromJob = null;
+  if (added) S.fromJob = null;   // real files replace a chained result; a rejected drop leaves it alone
   if (skipped.length) toast(`Skipped: ${skipped.slice(0, 2).join(', ')}${skipped.length > 2 ? ` +${skipped.length - 2} more` : ''}`, 4200);
   else if (added) toast(`${added} file${added > 1 ? 's' : ''} added`);
   return added;
@@ -184,9 +197,10 @@ function renderWork() {
   $$('[data-rm]').forEach(x => x.addEventListener('click', () => { if (S.fromJob) S.fromJob = null; else S.files.splice(+x.dataset.rm, 1); renderWork(); }));
   $$('[data-up]').forEach(x => x.addEventListener('click', () => { const i = +x.dataset.up; [S.files[i - 1], S.files[i]] = [S.files[i], S.files[i - 1]]; renderWork(); }));
   $$('[data-dn]').forEach(x => x.addEventListener('click', () => { const i = +x.dataset.dn; [S.files[i + 1], S.files[i]] = [S.files[i], S.files[i + 1]]; renderWork(); }));
-  const warn = $('#fileWarn');
+  const warn = $('#fileWarn'), st = S.tool && serverTool(S.tool.id);
   if (list.length && !k) { warn.textContent = 'These files are of different types. Use one type per job.'; warn.hidden = false; }
-  else if (S.tool && list.length && !fits(S.tool)) { const st = serverTool(S.tool.id); warn.textContent = `${S.tool.n} needs ${KIND_LABEL[st.accepts]}${st.minFiles > 1 ? `, at least ${st.minFiles} of them` : ''}${st.maxFiles === 1 ? ', one at a time' : ''}.`; warn.hidden = false; }
+  else if (st && list.length && !kindFits(S.tool)) { warn.textContent = `${S.tool.n} needs ${KIND_LABEL[st.accepts]}${st.maxFiles === 1 ? ', one at a time' : ''}.`; warn.hidden = false; }
+  else if (st && list.length && list.length < st.minFiles) { warn.textContent = `${S.tool.n} needs at least ${st.minFiles} files. Add ${st.minFiles - list.length} more.`; warn.hidden = false; }
   else warn.hidden = true;
   renderTiles1();
   const t = S.tool, opts = $('#opts');
@@ -202,7 +216,7 @@ const sw = (name, on) => `<button type="button" class="sw ${on ? 'on' : ''}" dat
 const hint = t => `<p class="hint"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span id="hintText">${esc(t)}</span></p>`;
 
 function renderOpts(t) {
-  const b = $('#optin'), o = S.opt;
+  const b = $('#optin'), o = opt();
   const head = `<h6><i class="toolic">${svg(t.ic)}</i>${t.n} settings</h6>`;
   const total = S.fromJob ? S.fromJob.size : S.files.reduce((a, f) => a + f.size, 0);
   let html = head;
@@ -235,7 +249,7 @@ function renderOpts(t) {
       html += seg('angle', [{ v: '+90', n: '90° right', s: '↻' }, { v: '-90', n: '90° left', s: '↺' }, { v: '+180', n: 'Upside down', s: '180°' }], o.angle); break;
     case 'protect': o.password ??= ''; o.password2 ??= '';
       html += `<div class="fieldrow"><div class="field"><label for="f_pw">Password</label><div class="pw"><input id="f_pw" data-opt="password" type="password" minlength="4" maxlength="64" autocomplete="new-password" value="${esc(o.password)}"><button type="button" id="pwShow">Show</button></div></div>
-        <div class="field"><label for="f_pw2">Again, to be sure</label><input id="f_pw2" data-opt="password2" type="password" maxlength="64" autocomplete="new-password" value="${esc(o.password2)}"></div></div>` + hint('Anyone opening the PDF will need this password. We do not keep it.'); break;
+        <div class="field"><label for="f_pw2">Again, to be sure</label><input id="f_pw2" data-opt="password2" type="password" maxlength="64" autocomplete="new-password" value="${esc(o.password2)}"></div></div>` + hint('Anyone opening the PDF will need this password. It is used once and not stored.'); break;
     case 'numbers': o.pos ??= 'bc'; o.format ??= 'n';
       html += `<div class="sub">Style</div>` + seg('format', [{ v: 'n', n: '1', s: 'just the number' }, { v: 'n/N', n: '1 / 12', s: 'with total' }, { v: 'Page n of N', n: 'Page 1 of 12', s: 'in words' }], o.format)
         + `<div class="sub">Position</div>` + seg('pos', [{ v: 'bl', n: 'Bottom left' }, { v: 'bc', n: 'Bottom middle' }, { v: 'br', n: 'Bottom right' }, { v: 'tc', n: 'Top middle' }, { v: 'tr', n: 'Top right' }], o.pos, 'slim'); break;
@@ -271,70 +285,86 @@ function sigPad(cv, o) {
 
 function est() {
   const t = S.tool; if (!t) return;
-  const n = inputCount(), total = S.fromJob ? S.fromJob.size : S.files.reduce((a, f) => a + f.size, 0);
+  const o = opt(), n = inputCount(), total = S.fromJob ? S.fromJob.size : S.files.reduce((a, f) => a + f.size, 0);
   let s;
   if (!n) s = 'Add a file to begin';
-  else if (t.id === 'compress') s = `${fmt(total)} → <b>about ${fmt(total * (1 - LV.find(l => l.k === S.opt.level).p))}</b>`;
-  else if (t.id === 'merge') s = `${n} file${n > 1 ? 's' : ''} → <b>one PDF</b>`;
+  else if (t.id === 'compress') s = `${fmt(total)} → <b>about ${fmt(total * (1 - LV.find(l => l.k === o.level).p))}</b>`;
+  else if (t.id === 'merge') s = n < 2 ? 'Add one more PDF to merge' : `${n} files → <b>one PDF</b>`;
   else s = `${n} file${n > 1 ? 's' : ''} · <b>${fmt(total)}</b>`;
   $('#est').innerHTML = s; $('#est2').innerHTML = s;
-  const ok = n > 0 && fits(t);
+  const ok = canRun(t);
   $('#go').disabled = !ok; $('#go2').disabled = !ok;
 }
 
 /** Client-side checks that mirror the server's, so mistakes show before the upload. */
 function validateOptions() {
-  const o = S.opt, t = S.tool.id;
-  const bad = (sel, msg) => { const i = $(sel); if (i) { i.classList.add('err'); i.focus(); } toast(msg, 3500); return false; };
+  const o = opt(), t = S.tool.id;
+  const bad = (sel, msg) => { const i = sel && $(sel); if (i) { i.classList.add('err'); i.focus(); } toast(msg, 3500); return false; };
   if (t === 'split' && o.mode === 'ranges' && !/^\s*\d+(\s*-\s*\d+)?(\s*,\s*\d+(\s*-\s*\d+)?)*\s*$/.test(o.ranges || '')) return bad('#f_ranges', 'Type the pages you want, like 1-3, 7');
+  if (t === 'split' && o.mode === 'every' && !(+o.every >= 1 && +o.every <= 500)) return bad('#f_every', 'Pages per file must be between 1 and 500');
   if (t === 'protect') { if ((o.password || '').length < 4) return bad('#f_pw', 'Choose a password of at least 4 characters'); if (o.password !== o.password2) return bad('#f_pw2', 'The two passwords do not match'); }
   if (t === 'sign' && o.mode === 'text' && !(o.text || '').trim()) return bad('#f_text', 'Type the name to sign with');
   if (t === 'sign' && o.mode === 'image' && !o.image) return bad(null, 'Draw your signature first');
   if (t === 'ocr' && !(o.langs || []).length) return bad(null, 'Pick at least one language');
   return true;
 }
-const serverOptions = () => { const { password2, ...rest } = S.opt; return rest; };
+const serverOptions = () => { const { password2, ...rest } = opt(); return rest; };
 
 [$('#go'), $('#go2')].forEach(b => b.addEventListener('click', startJob));
 async function startJob() {
-  if (!S.tool || !inputCount() || !fits(S.tool) || !validateOptions()) return;
+  if (!S.tool || !canRun(S.tool) || !validateOptions()) return;
   const fd = new FormData();
   fd.append('tool', S.tool.id); fd.append('options', JSON.stringify(serverOptions()));
   if (S.fromJob) fd.append('from', S.fromJob.id); else S.files.forEach(f => fd.append('files', f, f.name));
-  setView('run'); $('#errbox').hidden = true; $('.runpg').classList.remove('failed');
-  $('#rTitle').textContent = `${S.tool.ing}…`; $('#rMeta').textContent = `${inputCount() > 1 ? inputCount() + ' files' : (S.fromJob?.name || S.files[0].name)} · ${fmt(S.fromJob ? S.fromJob.size : S.files.reduce((a, f) => a + f.size, 0))} · on our server`;
+  const toolId = S.tool.id, label = S.tool.ing;
+  const metaText = `${inputCount() > 1 ? inputCount() + ' files' : (S.fromJob?.name || S.files[0].name)} · ${fmt(S.fromJob ? S.fromJob.size : S.files.reduce((a, f) => a + f.size, 0))} · on our server`;
+  history.pushState(null, '', '#run/pending'); stopPolling(); setView('run');
+  resetRun(`${label}…`, metaText, toolId);
   setRun(0, S.fromJob ? 'Starting' : 'Sending your file', 0);
   const xhr = S.xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/jobs');
-  xhr.upload.onprogress = e => { if (e.lengthComputable) setRun(Math.round(e.loaded / e.total * 35), e.loaded >= e.total ? 'Received, starting the job' : `Sending your file · ${Math.round(e.loaded / e.total * 100)}%`, 0); };
-  xhr.onerror = () => showError('The upload did not get through. Check your connection and try again.');
+  xhr.upload.onprogress = e => { if (xhr === S.xhr && e.lengthComputable) setRun(Math.round(e.loaded / e.total * 35), e.loaded >= e.total ? 'Received, starting the job' : `Sending your file · ${Math.round(e.loaded / e.total * 100)}%`, 0); };
+  xhr.onerror = () => { if (xhr === S.xhr) showError('The upload did not get through. Check your connection and try again.', toolId); };
   xhr.onload = () => {
+    if (xhr !== S.xhr) return;   // the user left this screen; the server will still wipe the job on its timer
+    S.xhr = null;
     let j = {}; try { j = JSON.parse(xhr.responseText); } catch { /* ignore */ }
-    if (xhr.status === 401) { loadSession(); return showError('The session was locked. Enter the code and try again.'); }
-    if (xhr.status >= 300) return showError(j.error || 'The server could not start this job.');
+    if (xhr.status === 401) { loadSession(); return showError('The session was locked. Enter the code and try again.', toolId); }
+    if (xhr.status >= 300) return showError(j.error || 'The server could not start this job.', toolId);
     S.job = j; history.replaceState(null, '', `#run/${j.id}`); watchJob(j.id);
   };
   xhr.send(fd);
+}
+function resetRun(title, meta, toolId) {
+  $('.runpg').classList.remove('failed'); $('#errbox').hidden = true;
+  $('#rTitle').textContent = title; $('#rMeta').textContent = meta || '';
+  $('#errBack').href = toolId ? `#work/${toolId}` : '#work';
 }
 function setRun(pct, step, dotStage) {
   $('#rfg').style.strokeDashoffset = 565 * (1 - pct / 100); $('#rpct').textContent = `${pct}%`;
   if (step && $('#rSt span')?.textContent !== step) $('#rSt').innerHTML = `<span>${esc(step)}</span>`;
   $$('#dots i').forEach((d, i) => d.className = i < dotStage ? 'fin' : i === dotStage ? 'on' : '');
 }
-function showError(msg) {
+function showError(msg, toolId) {
   stopPolling(); $('.runpg').classList.add('failed'); $('#rTitle').textContent = 'That did not work'; $('#rSt').innerHTML = '';
   $('#errMsg').textContent = msg; $('#errbox').hidden = false; $$('#dots i').forEach(d => d.className = '');
+  if (toolId) $('#errBack').href = `#work/${toolId}`;
 }
 async function fetchJob(id) { const r = await fetch(`/api/jobs/${id}`, { cache: 'no-store' }); if (r.status === 401) { loadSession(); throw new Error('locked'); } if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Lost'); return r.json(); }
 function watchJob(id) {
   stopPolling();
+  const gen = S.gen; let inFlight = false;
+  if (id === 'pending') return; // upload still going; startJob drives the screen
+  if (S.job?.id !== id) resetRun('Working…', '', null);
   const tick = async () => {
-    let j; try { j = await fetchJob(id); } catch (e) { return showError(e.message === 'locked' ? 'The session was locked. Enter the code and try again.' : 'This job is gone. Results are wiped after an hour.'); }
+    if (inFlight || gen !== S.gen) return; inFlight = true;
+    let j; try { j = await fetchJob(id); } catch (e) { inFlight = false; if (gen !== S.gen) return; return showError(e.message === 'locked' ? 'The session was locked. Enter the code and try again.' : `This job is gone. Results are wiped after ${retention()} minutes.`, S.job?.tool); }
+    inFlight = false; if (gen !== S.gen) return;
     S.job = j;
-    const t = TOOLS.find(x => x.id === j.tool); if (t) $('#rTitle').textContent = `${t.ing}…`;
+    const t = TOOLS.find(x => x.id === j.tool); if (t) { $('#rTitle').textContent = `${t.ing}…`; $('#errBack').href = `#work/${t.id}`; }
     if (!$('#rMeta').textContent) $('#rMeta').textContent = `${j.files.length > 1 ? j.files.length + ' files' : j.files[0]?.name || ''} · ${fmt(j.files.reduce((a, f) => a + f.size, 0))} · on our server`;
-    if (j.status === 'error') return showError(j.error);
-    if (j.status === 'done') { stopPolling(); setRun(100, 'Ready', 4); setTimeout(() => { location.hash = `#done/${id}`; }, 500); return; }
+    if (j.status === 'error') return showError(j.error, j.tool);
+    if (j.status === 'done') { stopPolling(); setRun(100, 'Ready', 4); setTimeout(() => { if (location.hash === `#run/${id}`) { history.replaceState(null, '', `#done/${id}`); route(); } }, 500); return; }
     const pct = 35 + Math.round(j.progress * 0.65);
     setRun(pct, j.step, j.status === 'queued' ? 1 : j.progress < 50 ? 2 : 3);
   };
@@ -343,7 +373,9 @@ function watchJob(id) {
 
 /* ---------- done view ---------- */
 async function showDone(id) {
-  let j; try { j = S.job?.id === id && S.job.status === 'done' ? S.job : await fetchJob(id); } catch { location.hash = '#start'; return toast('That result is gone. Results are wiped after an hour.', 4000); }
+  const gen = S.gen;
+  let j; try { j = S.job?.id === id && S.job.status === 'done' ? S.job : await fetchJob(id); } catch { if (gen !== S.gen) return; location.hash = '#start'; return toast(`That result is gone. Results are wiped after ${retention()} minutes.`, 4000); }
+  if (gen !== S.gen) return;
   if (j.status !== 'done') { location.hash = `#run/${id}`; return; }
   S.job = j;
   const t = TOOLS.find(x => x.id === j.tool) || TOOLS[0];
@@ -361,9 +393,9 @@ async function showDone(id) {
   const chainable = !!kindOf(j.result.name);
   $('.next').hidden = !chainable;
   if (chainable) fillTiles($('#tiles2'), x => `#work/${x.id}`, x => (serverTool(x.id)?.accepts === kindOf(j.result.name) ? '' : ' dim'));
-  $$('#tiles2 .tile').forEach(el => el.addEventListener('click', () => { S.fromJob = { id, name: j.result.name, size: after }; S.files = []; S.opt = {}; }));
+  $$('#tiles2 .tile').forEach(el => el.addEventListener('click', () => { S.fromJob = { id, name: j.result.name, size: after }; S.files = []; S.opts = {}; }));
   clearInterval(S.timer);
-  const paint = () => { const left = Math.max(0, Math.round((j.expiresAt - Date.now()) / 1000)); $('#tmr').textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`; if (!left) { clearInterval(S.timer); } };
+  const paint = () => { const left = Math.max(0, Math.round((j.expiresAt - Date.now()) / 1000)); $('#tmr').textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`; if (!left) clearInterval(S.timer); };
   paint(); S.timer = setInterval(paint, 1000);
 }
 $('#del').addEventListener('click', async () => {

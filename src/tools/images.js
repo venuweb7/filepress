@@ -1,30 +1,35 @@
 // PDF -> JPG (Poppler renders each page) and JPG/PNG -> PDF (img2pdf embeds without re-encoding).
 import fs from 'node:fs/promises';
-import path from 'node:path';
-import { run } from '../run.js';
-import { baseOf, checkKind, inPath, listDir, outPath, pick, timeouts, tmpPath, zipFiles } from './common.js';
+import { run, ToolError } from '../run.js';
+import { config } from '../config.js';
+import { assertPages, baseOf, checkKind, inPath, listDir, outPath, pdfProbe, pick, timeouts, tmpPath, zipFiles } from './common.js';
+
+const MAX_PIXELS = 40e6; // per rendered page
 
 export const pdfToJpg = {
   id: 'pdf-jpg', name: 'PDF → JPG', accepts: 'pdf', minFiles: 1, maxFiles: 1,
-  parseOptions: o => ({ dpi: pick(String(o.dpi), ['100', '150', '300'], '150') }),
+  parseOptions: o => ({ dpi: pick(o.dpi, ['100', '150', '300'], '150') }),
   checkInputs: files => checkKind(files, 'pdf'),
   async run({ job, dir, report }) {
-    const f = job.files[0], base = baseOf(f.name);
+    const f = job.files[0], base = baseOf(f.name), dpi = parseInt(job.options.dpi, 10);
+    const { pages, maxArea } = await pdfProbe(inPath(dir, f), dir);
+    assertPages(pages, 'PDF → JPG');
+    if (maxArea * (dpi / 72) ** 2 > MAX_PIXELS) throw new ToolError('A page is too large to draw at this sharpness. Try "Small".');
     report(20, 'Drawing the pages');
-    await run('pdftoppm', ['-jpeg', '-r', job.options.dpi, '-jpegopt', 'quality=88', inPath(dir, f), tmpPath(dir, `${base}-page`)], { cwd: dir, timeoutSec: timeouts.heavy() });
-    const pages = (await listDir(tmpPath(dir, ''))).filter(x => x.endsWith('.jpg'));
-    if (pages.length === 1) { const out = `${base}.jpg`; await fs.rename(tmpPath(dir, pages[0]), outPath(dir, out)); return { file: out, name: out }; }
-    report(85, `Packing ${pages.length} pictures`);
+    await run('pdftoppm', ['-jpeg', '-r', String(dpi), '-jpegopt', 'quality=88', inPath(dir, f), tmpPath(dir, `${base}-page`)], { cwd: dir, timeoutSec: timeouts.heavy() });
+    const files = (await listDir(tmpPath(dir, ''))).filter(x => x.endsWith('.jpg'));
+    if (files.length === 1) { const out = `${base}.jpg`; await fs.rename(tmpPath(dir, files[0]), outPath(dir, out)); return { file: out, name: out }; }
+    report(85, `Packing ${files.length} pictures`);
     const out = `${base}-pages.zip`;
-    await zipFiles(pages.map(p => tmpPath(dir, p)), outPath(dir, out));
-    return { file: out, name: out, count: pages.length };
+    await zipFiles(files.map(p => tmpPath(dir, p)), outPath(dir, out));
+    return { file: out, name: out, count: files.length };
   },
 };
 
 export const jpgToPdf = {
-  id: 'jpg-pdf', name: 'JPG → PDF', accepts: 'image', minFiles: 1, maxFiles: 50,
+  id: 'jpg-pdf', name: 'JPG → PDF', accepts: 'image', minFiles: 1, maxFiles: config.maxFiles,
   parseOptions: o => ({ pagesize: pick(o.pagesize, ['auto', 'A4', 'Letter'], 'auto') }),
-  checkInputs: files => checkKind(files, 'image', { min: 1, max: 50 }),
+  checkInputs: files => checkKind(files, 'image', { min: 1, max: config.maxFiles }),
   async run({ job, dir, report }) {
     const base = job.files.length === 1 ? baseOf(job.files[0].name) : `${baseOf(job.files[0].name)}-and-${job.files.length - 1}-more`;
     const out = `${base}.pdf`;
@@ -33,8 +38,8 @@ export const jpgToPdf = {
       report(10 + Math.round(60 * i / job.files.length), `Preparing picture ${i + 1} of ${job.files.length}`);
       let src = inPath(dir, f);
       // img2pdf refuses pictures with transparency; flatten those onto white first.
-      if (f.kind === 'image' && /\.png$/i.test(f.stored)) {
-        const { out: alpha } = await run('identify', ['-format', '%A', src], { cwd: dir, timeoutSec: 60 });
+      if (/\.png$/i.test(f.stored)) {
+        const { out: alpha } = await run('identify', ['-format', '%A', src], { cwd: dir, timeoutSec: 60, memMb: 1024 });
         if (/true|blend/i.test(alpha)) { const flat = tmpPath(dir, `${i}-flat.png`); await run('convert', [src, '-background', 'white', '-alpha', 'remove', '-alpha', 'off', flat], { cwd: dir, timeoutSec: 120 }); src = flat; }
       }
       inputs.push(src);
