@@ -26,7 +26,7 @@ const gone = `This job does not exist any more. Results are wiped after ${config
 /* ---------- security headers ---------- */
 app.use((req, res, next) => {
   res.set({
-    'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',
@@ -74,6 +74,9 @@ app.use(express.static(config.publicDir, {
   index: 'index.html', etag: true,
   setHeaders: (res, file) => res.set('Cache-Control', /\.(html)$/.test(file) ? 'no-cache' : /\/fonts\//.test(file) ? 'public, max-age=31536000, immutable' : 'public, max-age=3600'),
 }));
+
+// pdf.js for first-page previews. They are rendered in the browser; nothing is uploaded for that.
+app.use('/vendor/pdfjs', express.static(path.join(config.publicDir, '..', 'node_modules', 'pdfjs-dist'), { immutable: true, maxAge: '30d', index: false }));
 
 /* ---------- small JSON endpoints ---------- */
 const limits = { maxFileMb: config.maxFileMb, maxFiles: config.maxFiles, maxRequestMb: config.maxRequestMb, retentionMin: config.retentionMin };

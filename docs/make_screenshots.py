@@ -24,6 +24,11 @@ if not pdf.exists():
         subprocess.run(['convert', '-size', '2400x1800', 'plasma:fractal', '-quality', '100', str(TMP / f'p{i}.jpg')], check=True)
     subprocess.run(['img2pdf', '--pagesize', 'A4', *[str(TMP / f'p{i}.jpg') for i in range(3)], '-o', str(pdf)], check=True)
 
+pdf2 = TMP / 'signed-contract.pdf'
+if not pdf2.exists():
+    subprocess.run(['convert', '-size', '1600x2200', 'plasma:fractal', '-blur', '0x8', '-quality', '92', str(TMP / 'q.jpg')], check=True)
+    subprocess.run(['img2pdf', '--pagesize', 'A4', str(TMP / 'q.jpg'), '-o', str(pdf2)], check=True)
+
 env = dict(os.environ, PORT=str(PORT), JOBS_DIR=str(TMP / 'jobs'), ACCESS_CODE='', TRUST_PROXY='0')
 server = subprocess.Popen(['node', 'src/server.js'], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 for _ in range(50):
@@ -42,8 +47,14 @@ try:
         pg = ctx.new_page(); pg.goto(BASE + '/'); pg.wait_for_function('document.fonts.ready.then(()=>true)'); pg.wait_for_timeout(1200)
         pg.screenshot(path=str(OUT / 'start.png'), clip={'x': 0, 'y': 0, 'width': 1280, 'height': 1180}, full_page=True)
         pg.set_input_files('#file0', str(pdf)); pg.wait_for_selector('section[data-view=work].on'); pg.wait_for_timeout(500)
-        pg.click('#tiles1 .tile[data-id="compress"]'); pg.wait_for_timeout(3200)   # let the "file added" toast fade
+        pg.click('#tiles1 .tile[data-id="compress"]'); pg.wait_for_selector('#files img.pv', timeout=20_000); pg.wait_for_timeout(3200)   # preview rendered, toast faded
         pg.screenshot(path=str(OUT / 'job.png'), full_page=True)
+        # a second file + Merge shows the page-order strip with draggable previews
+        pg.set_input_files('#file1', str(pdf2)); pg.wait_for_timeout(400)
+        pg.click('#tiles1 .tile[data-id="merge"]'); pg.wait_for_selector('#ocards .ocard img.pv', timeout=20_000); pg.wait_for_timeout(3200)
+        pg.screenshot(path=str(OUT / 'order.png'), clip={'x': 0, 'y': 0, 'width': 1280, 'height': 720})
+        pg.click('#files .file:last-child .x'); pg.wait_for_timeout(300)
+        pg.click('#tiles1 .tile[data-id="compress"]'); pg.wait_for_timeout(600)
         pg.click('#go'); pg.wait_for_selector('section[data-view=run].on'); pg.wait_for_timeout(1500)
         pg.screenshot(path=str(OUT / 'working.png'))
         pg.wait_for_selector('section[data-view=done].on', timeout=120_000); pg.wait_for_timeout(1800)

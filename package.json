@@ -4,7 +4,9 @@
   "description": "Self-hosted PDF tools. Files are processed on your own server and wiped after an hour.",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
@@ -18,7 +20,8 @@
     "express-rate-limit": "^7.5.0",
     "multer": "^2.0.1",
     "p-queue": "^8.1.0",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.5.438"
   },
   "license": "MIT"
 }

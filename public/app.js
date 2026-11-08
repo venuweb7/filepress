@@ -50,6 +50,72 @@ const opt = () => (S.tool ? (S.opts[S.tool.id] ??= {}) : {});
 const serverTool = id => (S.session?.tools || []).find(t => t.id === id);
 const retention = () => S.session?.limits.retentionMin || 60;
 
+/* ---------- previews: rendered right here in the browser, nothing is uploaded for this ---------- */
+const thumbs = new WeakMap();   // File -> {url, pages, pending}
+let pdfjsP = null;
+const pdfjs = () => (pdfjsP ??= import('/vendor/pdfjs/build/pdf.min.mjs').then(m => { m.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/build/pdf.worker.min.mjs'; return m; }));
+async function renderPdfThumb(data) {
+  const lib = await pdfjs();
+  const task = lib.getDocument({ data, isEvalSupported: false, standardFontDataUrl: '/vendor/pdfjs/standard_fonts/', cMapUrl: '/vendor/pdfjs/cmaps/', cMapPacked: true, wasmUrl: '/vendor/pdfjs/wasm/', iccUrl: '/vendor/pdfjs/iccs/' });
+  try {
+    const doc = await task.promise;
+    const page = await doc.getPage(1);
+    const base = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: 260 / base.width });
+    const cv = document.createElement('canvas'); cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+    await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    return { url: cv.toDataURL('image/jpeg', 0.82), pages: doc.numPages };
+  } finally { task.destroy().catch(() => {}); }
+}
+function ensureThumb(file) {
+  if (!file || thumbs.has(file)) return;
+  const entry = { url: null, pages: null, pending: true }; thumbs.set(file, entry);
+  (async () => {
+    try {
+      const kind = kindOf(file.name);
+      if (kind === 'image') entry.url = URL.createObjectURL(file);
+      else if (kind === 'pdf' && file.size <= 80 * 1048576) Object.assign(entry, await renderPdfThumb(new Uint8Array(await file.arrayBuffer())));
+    } catch (e) { console.warn('No preview for this file:', e?.message || e); }
+    entry.pending = false;
+    paintThumbs();
+  })();
+}
+/** Put finished previews into the rows and cards already on screen, without re-animating the list. */
+function paintThumbs() {
+  const list = currentList();
+  $$('#files .file, #ocards .ocard').forEach(el => {
+    const f = list[+el.dataset.fi]; const t = f && thumbs.get(f.file || f); if (!t?.url) return;
+    const box = el.querySelector('.th, .opv'); if (!box || box.querySelector('img')) return;
+    box.insertAdjacentHTML('afterbegin', `<img class="pv" src="${t.url}" alt="">`);
+    const small = el.querySelector('.nm small'); if (small && t.pages && !/page/.test(small.textContent)) small.textContent += ` · ${t.pages} page${t.pages > 1 ? 's' : ''}`;
+  });
+}
+const currentList = () => (S.fromJob ? [{ name: S.fromJob.name, size: S.fromJob.size, chained: true, file: S.fromJob.file }] : S.files);
+
+/** Drag-to-reorder for a container of items with data-fi. Vertical lists move by their handle; the strip by the whole card. */
+function sortable(container, sel, { horizontal, handle }) {
+  let drag = null;
+  container.addEventListener('pointerdown', e => {
+    const item = e.target.closest(sel); if (!item || e.button) return;
+    if (handle && !e.target.closest(handle)) return;
+    e.preventDefault(); drag = { item, id: e.pointerId, moved: false };
+    item.setPointerCapture(e.pointerId); item.classList.add('dragging');
+  });
+  container.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return; drag.moved = true;
+    const parent = drag.item.parentNode, others = [...parent.querySelectorAll(sel)].filter(x => x !== drag.item);
+    const before = others.find(x => { const r = x.getBoundingClientRect(); return horizontal ? e.clientX < r.left + r.width / 2 : e.clientY < r.top + r.height / 2; });
+    if (before) { if (before !== drag.item.nextSibling) parent.insertBefore(drag.item, before); } else if (parent.lastElementChild !== drag.item) parent.appendChild(drag.item);
+  });
+  const end = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { item, moved } = drag; drag = null; item.classList.remove('dragging');
+    if (!moved) return;
+    const order = [...item.parentNode.querySelectorAll(sel)].map(x => +x.dataset.fi);
+    S.files = order.map(i => S.files[i]); renderWork();
+  };
+  container.addEventListener('pointerup', end); container.addEventListener('pointercancel', end);
+}
+
 /* ---------- boot ---------- */
 async function loadSession() {
   const r = await fetch('/api/session', { cache: 'no-store' });
@@ -182,17 +248,31 @@ for (const [dropSel, inputSel, goWork] of [['#drop0', '#file0', true], ['#add1',
 }
 
 /* ---------- work view ---------- */
+let sortablesReady = false;
 function renderWork() {
-  const list = S.fromJob ? [{ name: S.fromJob.name, size: S.fromJob.size, chained: true }] : S.files;
+  const list = currentList();
   const k = inputKind();
+  list.forEach(f => ensureThumb(f.file || f));
+  const multi = !S.fromJob && list.length > 1;
   $('#files').replaceChildren(...list.map((f, i) => {
-    const el = document.createElement('div'); el.className = 'file'; el.style.animationDelay = `${i * 0.05}s`;
+    const el = document.createElement('div'); el.className = 'file'; el.dataset.fi = i; el.style.animationDelay = `${i * 0.05}s`;
     const kind = kindOf(f.name), bad = S.tool && serverTool(S.tool.id) && kind !== serverTool(S.tool.id).accepts;
     if (bad) el.classList.add('bad');
-    el.innerHTML = `<div class="th"><i>${esc(extOf(f.name) || 'file')}</i></div><div class="nm"><b>${esc(f.name)}</b><small>${fmt(f.size)}${f.chained ? ' · result of the last job' : ''}</small></div>
-      <div class="ctl">${!f.chained && list.length > 1 ? `<button data-up="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button data-dn="${i}" aria-label="Move down" ${i === list.length - 1 ? 'disabled' : ''}>↓</button>` : ''}<button class="x" data-rm="${i}" aria-label="Remove"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>`;
+    const t = thumbs.get(f.file || f), ext = esc(extOf(f.name) || 'file');
+    el.innerHTML = `${multi ? '<span class="hdl" data-hdl title="Drag to reorder">⋮⋮</span>' : ''}<div class="th">${t?.url ? `<img class="pv" src="${t.url}" alt="">` : ''}<i>${ext}</i></div><div class="nm"><b>${esc(f.name)}</b><small>${fmt(f.size)}${t?.pages ? ` · ${t.pages} page${t.pages > 1 ? 's' : ''}` : ''}${f.chained ? ' · result of the last job' : ''}</small></div>
+      <div class="ctl">${multi ? `<button data-up="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button><button data-dn="${i}" aria-label="Move down" ${i === list.length - 1 ? 'disabled' : ''}>↓</button>` : ''}<button class="x" data-rm="${i}" aria-label="Remove"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>`;
     return el;
   }));
+  // page-order strip: big previews you can drag, shown when the chosen tool joins several files
+  const joins = multi && S.tool && (serverTool(S.tool.id)?.maxFiles || 1) > 1;
+  $('#order').hidden = !joins;
+  if (joins) $('#ocards').replaceChildren(...list.map((f, i) => {
+    const el = document.createElement('div'); el.className = 'ocard'; el.dataset.fi = i;
+    const t = thumbs.get(f.file || f), ext = esc(extOf(f.name) || 'file');
+    el.innerHTML = `<span class="n">${i + 1}</span><div class="opv">${t?.url ? `<img class="pv" src="${t.url}" alt="">` : ext}</div><small>${esc(f.name)}</small>`;
+    return el;
+  }));
+  if (!sortablesReady) { sortable($('#files'), '.file', { horizontal: false, handle: '[data-hdl]' }); sortable($('#ocards'), '.ocard', { horizontal: true }); sortablesReady = true; }
   $('#fCount').textContent = `${list.length} file${list.length === 1 ? '' : 's'}`;
   $$('[data-rm]').forEach(x => x.addEventListener('click', () => { if (S.fromJob) S.fromJob = null; else S.files.splice(+x.dataset.rm, 1); renderWork(); }));
   $$('[data-up]').forEach(x => x.addEventListener('click', () => { const i = +x.dataset.up; [S.files[i - 1], S.files[i]] = [S.files[i], S.files[i - 1]]; renderWork(); }));
@@ -224,7 +304,7 @@ function renderOpts(t) {
     case 'compress': o.level ??= 'balanced';
       html += seg('level', LV.map(l => ({ v: l.k, n: l.n, s: total ? `≈ ${fmt(total * (1 - l.p))}` : '' })), o.level) + hint(LV.find(l => l.k === o.level).d); break;
     case 'merge': o.divider ??= false;
-      html += `<div class="row"><span>Order</span><b>As listed · use the arrows</b></div><div class="row"><span>Blank page between files</span>${sw('divider', o.divider)}</div>`; break;
+      html += `<div class="row"><span>Order</span><b>As shown · drag the cards or use the arrows</b></div><div class="row"><span>Blank page between files</span>${sw('divider', o.divider)}</div>`; break;
     case 'split': o.mode ??= 'ranges'; o.ranges ??= ''; o.every ??= 2;
       html += seg('mode', [{ v: 'ranges', n: 'Pick pages', s: 'e.g. 1-3, 7' }, { v: 'each', n: 'Every page', s: 'one file each' }, { v: 'every', n: 'Every N pages', s: 'chunks' }], o.mode);
       if (o.mode === 'ranges') html += `<div class="field"><label for="f_ranges">Pages to keep</label><input id="f_ranges" data-opt="ranges" inputmode="numeric" placeholder="1-3, 7" value="${esc(o.ranges)}"></div>`;
@@ -393,7 +473,10 @@ async function showDone(id) {
   const chainable = !!kindOf(j.result.name);
   $('.next').hidden = !chainable;
   if (chainable) fillTiles($('#tiles2'), x => `#work/${x.id}`, x => (serverTool(x.id)?.accepts === kindOf(j.result.name) ? '' : ' dim'));
-  $$('#tiles2 .tile').forEach(el => el.addEventListener('click', () => { S.fromJob = { id, name: j.result.name, size: after }; S.files = []; S.opts = {}; }));
+  // the result can be previewed too: fetch it once (it is ours) so the next job shows its first page
+  let chainedFile = null;
+  if (chainable) fetch(`/api/jobs/${id}/download`).then(r => r.ok ? r.blob() : null).then(b => { if (b) chainedFile = new File([b], j.result.name); }).catch(() => {});
+  $$('#tiles2 .tile').forEach(el => el.addEventListener('click', () => { S.fromJob = { id, name: j.result.name, size: after, file: chainedFile }; S.files = []; S.opts = {}; }));
   clearInterval(S.timer);
   const paint = () => { const left = Math.max(0, Math.round((j.expiresAt - Date.now()) / 1000)); $('#tmr').textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`; if (!left) clearInterval(S.timer); };
   paint(); S.timer = setInterval(paint, 1000);

@@ -30,8 +30,13 @@ Results can be chained: compress, then sign, then protect, without uploading aga
 ## How it feels
 
 Pick a job and its settings appear in place, with the expected result size shown right on the buttons.
+Every file shows a real preview, rendered in your browser before anything is uploaded.
 
 ![Choosing a job](docs/screenshots/job.png)
+
+When a job joins several files, a page-order strip appears. Drag a card to move it, on mouse or touch.
+
+![Page order](docs/screenshots/order.png)
 
 A ring fills while the server works, then the result page shows before and after sizes, a download button,
 a delete button and a timer counting down to the automatic wipe.

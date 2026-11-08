@@ -27,6 +27,11 @@ if not pdf.exists():
     subprocess.run(['convert', '-size', '2000x1500', 'plasma:fractal', '-quality', '98', str(FIX / 'b.jpg')], check=True)
     subprocess.run(['img2pdf', str(FIX / 'b.jpg'), str(FIX / 'b.jpg'), str(FIX / 'b.jpg'), '-o', str(pdf)], check=True)
 
+pdf2 = FIX / 'browser2.pdf'
+if not pdf2.exists():
+    subprocess.run(['convert', '-size', '1200x900', 'plasma:fractal', '-quality', '90', str(FIX / 'b2.jpg')], check=True)
+    subprocess.run(['img2pdf', str(FIX / 'b2.jpg'), '-o', str(pdf2)], check=True)
+
 env = dict(os.environ, PORT=str(PORT), JOBS_DIR=str(TMP / 'jobs-browser'), ACCESS_CODE=CODE, TRUST_PROXY='0')
 server = subprocess.Popen([sys.executable.replace('python3', 'node') if False else 'node', 'src/server.js'], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 for _ in range(50):
@@ -76,6 +81,21 @@ try:
             pg.set_input_files('#file0', str(pdf)); pg.wait_for_selector('section[data-view=work].on')
             pg.wait_for_timeout(500); pg.screenshot(path=str(SHOTS / f'work-{w}.png'), full_page=True); check(pg, f'work@{w}')
             assert pg.locator('#tiles1 .tile.sug').get_attribute('data-id') == 'compress', 'big PDF should suggest compress'
+            pg.wait_for_selector('#files img.pv', timeout=20_000)   # first-page preview rendered in the browser
+            # second file -> Merge shows the page-order strip; drag card 1 behind card 2 and the list must follow
+            pg.set_input_files('#file1', str(pdf2)); pg.wait_for_timeout(600)
+            pg.click('#tiles1 .tile[data-id="merge"]'); pg.wait_for_selector('#ocards .ocard', timeout=20_000); pg.wait_for_timeout(400)
+            pg.evaluate("window.scrollTo({top:0,behavior:'instant'})"); pg.wait_for_timeout(1200)   # let entrance animations finish
+            names_before = pg.eval_on_selector_all('#files .nm b', 'els => els.map(e => e.textContent)')
+            c1, c2 = pg.evaluate("[...document.querySelectorAll('#ocards .ocard')].slice(0,2).map(e => { const r = e.getBoundingClientRect(); return {x: r.x, y: r.y, width: r.width, height: r.height}; })")
+            pg.mouse.move(c1['x'] + c1['width'] / 2, c1['y'] + c1['height'] / 2); pg.mouse.down()
+            pg.mouse.move(c2['x'] + c2['width'] - 4, c2['y'] + c2['height'] / 2, steps=12); pg.mouse.up(); pg.wait_for_timeout(500)
+            names_after = pg.eval_on_selector_all('#files .nm b', 'els => els.map(e => e.textContent)')
+            if names_after != list(reversed(names_before)):
+                print('DEBUG cards:', pg.evaluate("[...document.querySelectorAll('#ocards .ocard')].map(x=>x.dataset.fi+':'+x.className)"), 'c1', c1, 'c2', c2)
+            assert names_after == list(reversed(names_before)), f'drag reorder failed: {names_before} -> {names_after}'
+            # back to a single file for the compress flow
+            pg.click('#files .file:last-child .x'); pg.wait_for_timeout(300)
             pg.click('#tiles1 .tile[data-id="compress"]'); pg.wait_for_timeout(700)
             pg.screenshot(path=str(SHOTS / f'options-{w}.png'), full_page=True); check(pg, f'options@{w}')
             pg.click('#optin .seg button[data-v="smallest"]'); pg.wait_for_timeout(300)
