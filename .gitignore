@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+tmp/
+test/tmp/
+*.log
+.DS_Store
+drop/
