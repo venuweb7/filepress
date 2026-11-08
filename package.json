@@ -1,5 +1,5 @@
 {
-  "name": "pressa",
+  "name": "filepress",
   "version": "0.1.0",
   "description": "Self-hosted PDF tools. Files are processed on your own server and wiped after an hour.",
   "type": "module",

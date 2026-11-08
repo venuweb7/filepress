@@ -1,4 +1,4 @@
-# Pressa — design notes
+# Filepress — design notes
 
 A self-hosted PDF toolbox in the spirit of iLovePDF, built so that documents never leave a server we control.
 Approved from the "version 2" prototype on 2026-11-08.
@@ -25,7 +25,7 @@ browser (public/)  ──multipart──▶  POST /api/jobs  ──▶  job fold
 ## Safety
 
 * **Two users.** The web server runs as `app`; every converter runs as `worker` through `sudo` (the only
-  allowed command is `env`, see `deploy/sudoers-pressa`). A bug in Ghostscript or LibreOffice therefore cannot
+  allowed command is `env`, see `deploy/sudoers-filepress`). A bug in Ghostscript or LibreOffice therefore cannot
   read the server's environment (secrets) or touch its code. Job folders are shared through the `jobs` group
   (setgid on `/data/jobs`, umask 007). `/app` is root-owned and read-only.
 * **Every engine runs through `src/run.js`:** no shell, argument arrays only, minimal environment, `HOME`/`TMPDIR`

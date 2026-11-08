@@ -7,10 +7,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) && n >= 0 ? n : d; };
 
 export const config = {
-  appName: process.env.APP_NAME || 'Pressa',
+  appName: process.env.APP_NAME || 'Filepress',
   port: int(process.env.PORT, 8080),
   // Where job folders live. Ephemeral is fine: everything is wiped on a timer anyway.
-  jobsDir: process.env.JOBS_DIR || path.join(os.tmpdir(), 'pressa-jobs'),
+  jobsDir: process.env.JOBS_DIR || path.join(os.tmpdir(), 'filepress-jobs'),
   maxFileMb: int(process.env.MAX_FILE_MB, 200),
   maxFiles: int(process.env.MAX_FILES, 20),
   maxRequestMb: int(process.env.MAX_REQUEST_MB, 400),   // whole upload, all files together

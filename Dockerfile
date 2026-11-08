@@ -1,4 +1,4 @@
-# Pressa: Node app + the PDF engines it shells out to. Built for Railway (any Docker host works).
+# Filepress: Node app + the PDF engines it shells out to. Built for Railway (any Docker host works).
 FROM node:22-bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && python3 -c "import pdf2docx, numpy, cv2, fitz" \
     && apt-get purge -y python3-pip && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Two unprivileged users: "app" runs the web server, "worker" runs the converters (via sudo, see deploy/sudoers-pressa).
+# Two unprivileged users: "app" runs the web server, "worker" runs the converters (via sudo, see deploy/sudoers-filepress).
 # They share the "jobs" group; job folders are group-writable thanks to the setgid bit on /data/jobs.
 RUN groupadd -r jobs \
     && useradd -r -u 10001 -m -d /home/app -s /usr/sbin/nologin -G jobs app \
@@ -31,9 +31,9 @@ RUN npm ci --omit=dev --no-audit --no-fund
 COPY src ./src
 COPY public ./public
 COPY assets ./assets
-COPY deploy/sudoers-pressa /etc/sudoers.d/pressa
+COPY deploy/sudoers-filepress /etc/sudoers.d/filepress
 # Application code stays owned by root and read-only for both users.
-RUN chmod 0440 /etc/sudoers.d/pressa && visudo -cf /etc/sudoers.d/pressa && chmod -R a-w /app
+RUN chmod 0440 /etc/sudoers.d/filepress && visudo -cf /etc/sudoers.d/filepress && chmod -R a-w /app
 
 USER app
 ENV PORT=8080 JOBS_DIR=/data/jobs HOME=/home/app WORKER_USER=worker

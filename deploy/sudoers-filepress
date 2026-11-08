@@ -1,4 +1,4 @@
 # The web server (user "app") may run converters as the unprivileged "worker" user, and nothing else.
-# Installed by the Dockerfile at /etc/sudoers.d/pressa (mode 0440).
+# Installed by the Dockerfile at /etc/sudoers.d/filepress (mode 0440).
 Defaults:app !syslog, !pam_session, !requiretty
 app ALL=(worker) NOPASSWD: /usr/bin/env

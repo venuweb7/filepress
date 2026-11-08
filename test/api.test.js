@@ -32,7 +32,7 @@ async function makeFixtures() {
   const img = await doc.embedJpg(await fs.readFile(path.join(FIX, 'noise.jpg')));
   for (let i = 1; i <= 3; i++) {
     const p = doc.addPage([595, 842]);
-    p.drawText(`Pressa fixture page ${i} of 3. The quick brown fox jumps over the lazy dog.`, { x: 40, y: 790, size: 14, font });
+    p.drawText(`Filepress fixture page ${i} of 3. The quick brown fox jumps over the lazy dog.`, { x: 40, y: 790, size: 14, font });
     p.drawImage(img, { x: 40, y: 300, width: 515, height: 368 });
   }
   await fs.writeFile(path.join(FIX, 'text.pdf'), await doc.save());
@@ -44,7 +44,7 @@ async function makeFixtures() {
   // A PNG with transparency (img2pdf needs it flattened first).
   run('convert', ['-size', '300x200', 'xc:none', '-fill', 'red', '-draw', 'circle 150,100 150,30', path.join(FIX, 'alpha.png')]);
   // A Word file: let LibreOffice turn a .txt into .docx.
-  await fs.writeFile(path.join(FIX, 'memo.txt'), 'Pressa memo\n\nThis Word document was generated for the test suite.\n');
+  await fs.writeFile(path.join(FIX, 'memo.txt'), 'Filepress memo\n\nThis Word document was generated for the test suite.\n');
   run('soffice', ['--headless', '--norestore', `-env:UserInstallation=file://${path.join(TMP, 'lo')}`, '--convert-to', 'docx:MS Word 2007 XML', '--outdir', FIX, path.join(FIX, 'memo.txt')]);
   // A junk file that claims to be a PDF.
   await fs.writeFile(path.join(FIX, 'fake.pdf'), 'this is not a pdf at all');
@@ -225,7 +225,7 @@ test('Scan -> Text adds a searchable layer', { timeout: 300_000 }, async () => {
 
 test('Office -> PDF and PDF -> Word', { timeout: 300_000 }, async () => {
   const w = await runTool('word-pdf', ['memo.docx'], {});
-  assert.equal(pages(w.out), 1); assert.match(text(w.out), /Pressa memo/);
+  assert.equal(pages(w.out), 1); assert.match(text(w.out), /Filepress memo/);
   const d = await runTool('pdf-word', ['text.pdf'], {});
   assert.match(d.job.result.name, /\.docx$/);
   assert.equal((await fs.readFile(d.out)).subarray(0, 2).toString(), 'PK');

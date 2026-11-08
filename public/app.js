@@ -1,4 +1,4 @@
-// Pressa front end. Plain JS, no build step. Talks to /api/* (see src/server.js).
+// Filepress front end. Plain JS, no build step. Talks to /api/* (see src/server.js).
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const fmt = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

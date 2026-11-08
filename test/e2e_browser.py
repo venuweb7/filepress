@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real-browser check of the Pressa front end with Playwright (Chromium).
+"""Real-browser check of the Filepress front end with Playwright (Chromium).
 
 Starts the server on a spare port, uploads a real PDF through the UI, runs Compress, waits for the
 result page, verifies the download, then takes screenshots at laptop and phone sizes and runs the same

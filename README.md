@@ -1,4 +1,4 @@
-# Pressa
+# Filepress
 
 Private PDF tools on your own server. Drop a file, pick a job, download the result. Everything is processed
 locally in the container and wiped an hour later. No third party ever sees a page.
@@ -9,8 +9,8 @@ English + Telugu) · Sign · Rotate · Protect · Page numbers.
 ## Run it
 
 ```bash
-docker build -t pressa .
-docker run -p 8080:8080 -e ACCESS_CODE=choose-a-code pressa
+docker build -t filepress .
+docker run -p 8080:8080 -e ACCESS_CODE=choose-a-code filepress
 # open http://localhost:8080
 ```
 
