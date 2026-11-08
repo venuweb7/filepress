@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Two unprivileged users: "app" runs the web server, "worker" runs the converters (via sudo, see deploy/sudoers-filepress).
 # They share the "jobs" group; job folders are group-writable thanks to the setgid bit on /data/jobs.
-RUN groupadd -r jobs \
+RUN groupadd -r -g 10050 jobs \
     && useradd -r -u 10001 -m -d /home/app -s /usr/sbin/nologin -G jobs app \
     && useradd -r -u 10002 -M -s /usr/sbin/nologin -G jobs worker \
     && mkdir -p /data/jobs && chown app:jobs /data/jobs && chmod 2770 /data/jobs

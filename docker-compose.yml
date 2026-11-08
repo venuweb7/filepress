@@ -1,0 +1,27 @@
+# Run Filepress on any machine with Docker:
+#   cp .env.example .env   (set ACCESS_CODE and SESSION_SECRET)
+#   docker compose up -d --build
+# Then open http://<your-server>:8080  (put Caddy or nginx in front for HTTPS; see README).
+services:
+  filepress:
+    build: .
+    image: filepress:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      PORT: "8080"
+      JOBS_DIR: /data/jobs
+    # Job folders are temporary by design; a tmpfs keeps them in RAM and off the disk entirely.
+    # Size it for your biggest uploads (several files × up to MAX_FILE_MB, plus the results).
+    tmpfs:
+      - /data/jobs:size=2g,uid=10001,gid=10050,mode=2770
+    # LibreOffice and OCR want memory; give the container room so a big job is not killed.
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s

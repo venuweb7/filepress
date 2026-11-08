@@ -3,10 +3,12 @@ import fs from 'node:fs/promises';
 import { run } from '../run.js';
 import { baseOf, checkKind, inPath, outPath, pick, timeouts } from './common.js';
 
+// "recode" re-encodes JPEG pictures at the preset's quality even when they need no downsampling
+// (otherwise Ghostscript passes them through untouched and a photo PDF does not shrink at all).
 const LEVELS = {
-  smallest: { preset: '/screen', dpi: 90, mono: 200 },
-  balanced: { preset: '/ebook', dpi: 150, mono: 300 },
-  best: { preset: '/printer', dpi: 220, mono: 600 },
+  smallest: { preset: '/screen', dpi: 90, mono: 200, recode: true },
+  balanced: { preset: '/ebook', dpi: 150, mono: 300, recode: true },
+  best: { preset: '/printer', dpi: 220, mono: 600, recode: false },
 };
 
 export default {
@@ -23,6 +25,7 @@ export default {
       '-dDownsampleColorImages=true', `-dColorImageResolution=${lv.dpi}`, '-dColorImageDownsampleThreshold=1.0',
       '-dDownsampleGrayImages=true', `-dGrayImageResolution=${lv.dpi}`, '-dGrayImageDownsampleThreshold=1.0',
       '-dDownsampleMonoImages=true', `-dMonoImageResolution=${lv.mono}`, '-dMonoImageDownsampleThreshold=1.0',
+      `-dPassThroughJPEGImages=${lv.recode ? 'false' : 'true'}`,
       '-dAutoRotatePages=/None', `-sOutputFile=${outPath(dir, out)}`, inPath(dir, f),
     ], { cwd: dir, timeoutSec: timeouts.heavy() });
     report(90, 'Checking the result');
