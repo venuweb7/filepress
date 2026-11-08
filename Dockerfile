@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libreoffice-writer libreoffice-calc libreoffice-impress \
       fonts-liberation fonts-dejavu-core fonts-noto-core \
       python3 python3-pip libglib2.0-0 util-linux sudo dumb-init ca-certificates \
-    && pip3 install --no-cache-dir "pdf2docx==0.5.13" "pymupdf==2.1" "numpy==2.5.4" "opencv-python-headless==5.0.0.93" \
+    && pip3 install --no-cache-dir "pdf2docx==0.5.13" "pymupdf==2.1" "numpy==2.3.5" "opencv-python-headless==5.0.0.93" \
     && python3 -c "import pdf2docx, numpy, cv2, fitz" \
     && apt-get purge -y python3-pip && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
