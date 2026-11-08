@@ -74,7 +74,7 @@ $('#orbit').innerHTML = `<svg class="ring"><ellipse/></svg>` + OK.map((k, i) => 
 $$('#orbit .ob').forEach(el => el.style.animationDelay = `${-(el.dataset.i / OK.length * 44).toFixed(2)}s`);
 function fitOrbit() {
   const o = $('#orbit'), w = o.offsetWidth, h = o.offsetHeight; if (!w) return;
-  const cx = w / 2, cy = h / 2, rx = cx + 64, ry = cy + 46;
+  const cx = w / 2, cy = h / 2, rx = cx + 64, ry = cy + (innerHeight <= 800 ? 26 : 34);
   const d = `M ${cx - rx} ${cy} a ${rx} ${ry} 0 1 1 ${2 * rx} 0 a ${rx} ${ry} 0 1 1 ${-2 * rx} 0`;
   $$('#orbit .ob').forEach(el => el.style.offsetPath = `path("${d}")`);
   const sv = o.querySelector('svg'); sv.setAttribute('width', w); sv.setAttribute('height', h); sv.setAttribute('viewBox', `0 0 ${w} ${h}`);
