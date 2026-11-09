@@ -70,6 +70,16 @@ app.use((req, res, next) => {
 const requireUnlocked = (req, res, next) => (req.unlocked ? next() : res.status(401).json({ error: 'locked' }));
 
 /* ---------- static app ---------- */
+// The page itself is never cached, and it links to the stylesheet and script with a version stamp (a hash of
+// their contents), so a browser that kept yesterday's styles.css for an hour still gets today's after a deploy.
+const assetVersion = crypto.createHash('sha256')
+  .update(await fs.readFile(path.join(config.publicDir, 'styles.css')))
+  .update(await fs.readFile(path.join(config.publicDir, 'app.js')))
+  .digest('hex').slice(0, 10);
+const indexHtml = (await fs.readFile(path.join(config.publicDir, 'index.html'), 'utf8'))
+  .replace('href="/styles.css"', `href="/styles.css?v=${assetVersion}"`)
+  .replace('src="/app.js"', `src="/app.js?v=${assetVersion}"`);
+app.get(['/', '/index.html'], (req, res) => { res.set('Cache-Control', 'no-cache'); res.type('html').send(indexHtml); });
 app.use(express.static(config.publicDir, {
   index: 'index.html', etag: true,
   setHeaders: (res, file) => res.set('Cache-Control', /\.(html)$/.test(file) ? 'no-cache' : /\/fonts\//.test(file) ? 'public, max-age=31536000, immutable' : 'public, max-age=3600'),
