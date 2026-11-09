@@ -7,7 +7,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, setFillingRgbColor, rectangle as rectOp, fill as fillOp, concatTransformationMatrix } from 'pdf-lib';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TMP = path.join(here, 'tmp');
@@ -49,6 +49,61 @@ async function makeFixtures() {
   // Pictures in the other formats the picture tools take.
   run('convert', [path.join(FIX, 'noise.jpg'), '-resize', '50%', path.join(FIX, 'photo.webp')]);
   run('convert', [path.join(FIX, 'noise.jpg'), '-resize', '25%', path.join(FIX, 'anim.gif')]);
+  // A form as PDF -> Word must handle it. Page 1: fill-in blanks drawn as thin black rules inside sentences (one
+  // pair drawn as a single path holding two rectangles, one blank already carrying a value, one single-spaced), a
+  // sentence whose spaces are separate pieces at another size, three thin black rules that are NOT blanks (a
+  // heading's border, a table row's rule, a bare divider) and a grey-gridded table. Pages 2 and 3 add awkward
+  // geometry (see below). Rows with blanks are kept apart and their fragments do not line up: neighbouring rows of
+  // aligned fragments read as a borderless table to the engine (a layout question, not what this test is about).
+  {
+    const form = await PDFDocument.create();
+    const f = await form.embedFont(StandardFonts.Helvetica);
+    const p = form.addPage([595, 842]);
+    const black = rgb(0, 0, 0), grey = rgb(0.73, 0.73, 0.73);
+    const T = (s, x, y, size = 12) => p.drawText(s, { x, y, size, font: f });
+    const R = (x, y, w) => p.drawRectangle({ x, y, width: w, height: 0.8, color: black });
+    T('Name:', 40, 762); R(80, 760, 200); T('(as on the share certificate)', 290, 762);
+    T('I, the undersigned, hereby solemnly affirm and state on oath as follows.', 40, 744);
+    T('Place:', 40, 726); T('Date:', 206, 726);   // two blanks as ONE path holding two rectangles
+    p.pushOperators(pushGraphicsState(), setFillingRgbColor(0, 0, 0), rectOp(78, 724, 122, 0.8), rectOp(240, 724, 125, 0.8), fillOp(), popGraphicsState());
+    T('This declaration is made in good faith and nothing material has been concealed.', 40, 708);
+    T('Holder:', 40, 690); R(83, 688, 317); T('Ram Kumar', 90, 690);   // a value already written on the blank
+    T('The particulars given above are true to the best of my knowledge.', 40, 672);
+    T('Address:', 40, 658, 11); R(88, 656.5, 312);   // single-spaced under the line above
+    let x = 40;
+    for (const w of ['have', 'hereunto', 'set', 'their', 'respective', 'hands']) {
+      T(w, x, 630); x += f.widthOfTextAtSize(w, 12);
+      p.drawText(' ', { x, y: 630, size: 14.7, font: f }); x += f.widthOfTextAtSize(' ', 14.7);
+    }
+    T('ACME Corporation Ltd', 40, 600, 14); R(40, 593.7, 515);   // heading with a border 2 pt under its descender
+    T('Item', 60, 560); T('Qty', 200, 560); T('Price', 340, 560); R(40, 557.7, 515);   // table row over a horizontal-only rule
+    R(40, 530, 515);   // a bare divider
+    for (const y of [470, 450, 430]) p.drawRectangle({ x: 60, y, width: 400, height: 0.7, color: grey });
+    for (const gx of [60, 193, 326, 460]) p.drawRectangle({ x: gx, y: 430, width: 0.7, height: 40.7, color: grey });
+    T('Folio Number', 65, 456, 10); T('Face value', 198, 456, 10); T('Certificate No', 331, 456, 10);
+    // Page 2: the content starts with a transform that is never undone (some producers do this), so everything
+    // the reader sees is shifted; underscores must still land on their rules. Also: a title over a page-wide
+    // rule, a one-cell table row, a divider beside another column's text, and a value typed 2 pt below its line.
+    const p2 = form.addPage([595, 842]);
+    p2.pushOperators(concatTransformationMatrix(1, 0, 0, 1, 30, -40));
+    const T2 = (s, x, y, size = 12) => p2.drawText(s, { x, y, size, font: f });
+    const R2 = (x, y, w) => p2.drawRectangle({ x, y, width: w, height: 0.8, color: black });
+    T2('INVOICE', 40, 760, 18); R2(40, 757.3, 515);   // title over a page-wide rule at underline position
+    T2('Issued under the terms printed overleaf and subject to the usual conditions.', 40, 730);
+    T2('Ref:', 40, 700); R2(67, 698, 233);
+    T2('Payment is due within thirty days of the date shown on this document.', 40, 670);
+    T2('Total', 46, 640); R2(40, 637.5, 515);   // a one-cell table row over a horizontal-only rule
+    T2('All amounts are stated in rupees unless marked otherwise in the schedule.', 40, 610);
+    R2(40, 580, 210); T2('Right column body text here', 300, 582);   // a divider with another column beside it
+    T2('The schedule forms part of this document and must be read with it.', 40, 550);
+    T2('Code:', 40, 520); R2(77, 518, 323); T2('AB-12', 90, 517);   // value typed with its baseline 2 pt below the rule's top
+    // Page 3: an offset CropBox; the reader and the writer must agree on where the rule is.
+    const p3 = form.addPage([595, 842]);
+    p3.setCropBox(20, 30, 480, 770);
+    p3.drawText('Pin:', { x: 60, y: 700, size: 12, font: f }); p3.drawRectangle({ x: 86, y: 698, width: 214, height: 0.8, color: black });
+    p3.drawText('Next paragraph of text.', { x: 60, y: 670, size: 12, font: f });
+    await fs.writeFile(path.join(FIX, 'form.pdf'), await form.save());
+  }
   // A junk file that claims to be a PDF.
   await fs.writeFile(path.join(FIX, 'fake.pdf'), 'this is not a pdf at all');
 }
@@ -232,6 +287,17 @@ test('Office -> PDF and PDF -> Word', { timeout: 300_000 }, async () => {
   const d = await runTool('pdf-word', ['text.pdf'], {});
   assert.match(d.job.result.name, /\.docx$/);
   assert.equal((await fs.readFile(d.out)).subarray(0, 2).toString(), 'PK');
+  // The form: blanks survive as underscores (also after a value already written, and single-spaced), word spaces
+  // survive, and nothing is drawn on a heading's border, a table row's rule, a bare divider or the grey grid.
+  // Faithful text of a .docx: runs stay glued unless the file really has a space between them.
+  const docxText = f => run('python3', ['-I', '-c', 'import zipfile,sys;sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read("word/document.xml").decode())', f])
+    .replace(/<w:tab\/>/g, '\t').replace(/<\/w:p>|<w:br\/>/g, '\n').replace(/<[^>]+>/g, '');
+  const t = docxText((await runTool('pdf-word', ['form.pdf'], {})).out);
+  for (const label of ['Name:', 'Place:', 'Date:', 'Ram Kumar', 'Address:', 'Ref:', 'AB-12', 'Pin:']) assert.match(t, new RegExp(label + '\\s*_{5,}'), `blank after "${label}" kept`);
+  assert.match(t, /have hereunto set their respective hands/, 'word spaces kept');
+  for (const s of ['ACME Corporation Ltd', 'Item', 'Qty', 'Price', 'Folio Number', 'Certificate No', 'INVOICE', 'Total', 'Right column body text here', 'Next paragraph of text.']) assert.match(t, new RegExp(s), `"${s}" kept`);
+  assert.doesNotMatch(t, /(ACME Corporation Ltd|Item|Qty|Price|INVOICE|Total|Right column body text here|Next paragraph of text\.)\s*_{3,}/, 'no underscores on headings, table rules, dividers or the line after a blank');
+  assert.equal((t.match(/_{3,}/g) || []).length, 8, 'exactly the eight blanks became underscores');
 });
 
 test('picture tools: compress, resize, crop, convert, rotate, upscale, watermark, meme, blur faces', { timeout: 300_000 }, async () => {

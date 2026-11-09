@@ -1,5 +1,6 @@
 // Office <-> PDF. Word/Excel/PowerPoint -> PDF uses LibreOffice headless with a locked-down, throwaway
-// profile (macros off, links never updated). PDF -> Word uses pdf2docx, which keeps text flowing in paragraphs.
+// profile (macros off, links never updated). PDF -> Word uses pdf2docx through pdf-word.py, which also keeps
+// fill-in blanks (as underscores) and inter-word spaces that the engine alone would drop.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { run, ToolError } from '../run.js';
@@ -75,7 +76,8 @@ export const pdfToWord = {
   async run({ job, dir, report }) {
     const f = job.files[0], out = `${baseOf(f.name)}.docx`;
     report(15, 'Reading the layout');
-    await run('pdf2docx', ['convert', inPath(dir, f), outPath(dir, out)], { cwd: dir, timeoutSec: timeouts.heavy(), memMb: 0, env: { OPENBLAS_NUM_THREADS: '2' } });
+    await run('python3', ['-I', `${config.toolsDir}/pdf-word.py`, inPath(dir, f), outPath(dir, out), tmpPath(dir, 'pdf-word-pre.pdf')],
+      { cwd: dir, timeoutSec: timeouts.heavy(), memMb: 4096, env: { OPENBLAS_NUM_THREADS: '2' } });   // 4 GB address space, like blur-faces; a 3-page form peaks near 120 MB
     try { await fs.access(outPath(dir, out)); } catch { throw new ToolError('This PDF could not be turned into Word. Scanned PDFs need "Scan → Text" first.'); }
     return { file: out, name: out };
   },
