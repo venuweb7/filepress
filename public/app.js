@@ -431,7 +431,7 @@ function renderOpts(t) {
     case 'blur': o.strength ??= 'normal';
       html += seg('strength', [{ v: 'soft', n: 'Soft' }, { v: 'normal', n: 'Normal' }, { v: 'strong', n: 'Strong' }], o.strength) + hint('Faces are found on our server with a small open-source model; nothing is sent anywhere else. Faces seen from the side or very small ones can be missed, so check the result.'); break;
     default:
-      html += `<div class="row"><span>Settings</span><b>None needed</b></div>` + hint(t.id === 'pdf-word' ? 'Text and layout are rebuilt into an editable Word file. Scanned PDFs need "Scan → Text" first.' : 'Word, Excel and PowerPoint files become PDFs that look like the printout.');
+      html += `<div class="row"><span>Settings</span><b>None needed</b></div>` + hint(t.id === 'pdf-word' ? 'Text and layout are rebuilt into an editable Word file; fill-in blanks stay as blanks. Scanned PDFs need "Scan → Text" first.' : 'Word, Excel and PowerPoint files become PDFs that look like the printout.');
   }
   b.innerHTML = html;
   const ic = b.querySelector('.toolic'); ic.style.setProperty('--t', t.t); ic.style.setProperty('--c', t.c);

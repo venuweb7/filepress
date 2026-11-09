@@ -18,7 +18,7 @@ browser (public/)  ──multipart──▶  POST /api/jobs  ──▶  job fold
 * **Engines** (all Debian packages, pinned by the base image): Ghostscript (compress), qpdf (merge, split,
   rotate, protect), Poppler (`pdftoppm`, `pdfinfo`), LibreOffice headless (Office → PDF), OCRmyPDF + Tesseract
   `eng`/`tel` (Scan → Text), img2pdf + ImageMagick (pictures: PDF ↔ JPG and the ten picture tools in `pictures.js`),
-  OpenCV + the YuNet model in `assets/models` (Blur faces, via `blur-faces.py`), pdf2docx (PDF → Word), pdf-lib in a
+  OpenCV + the YuNet model in `assets/models` (Blur faces, via `blur-faces.py`), pdf2docx via `pdf-word.py` (PDF → Word; keeps blanks and word spaces), pdf-lib in a
   separate Node worker process (page numbers, signatures).
 * **Office first.** A PDF tool that receives only Office files converts them to PDF (`officeToPdfInputs`) before it
   runs, so Word/Excel/PowerPoint can be dropped on Compress, Merge, Sign and so on directly.

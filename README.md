@@ -18,7 +18,7 @@ file) and shows only the tools that fit it.
 | **Compress** | A much smaller PDF, three quality levels, text stays sharp | Ghostscript |
 | **Merge** | Several PDFs joined in your order, optional blank divider page | qpdf |
 | **Split** | Chosen pages as one PDF, or one file per page / per N pages (ZIP) | qpdf |
-| **PDF → Word** | An editable .docx with flowing paragraphs | pdf2docx |
+| **PDF → Word** | An editable .docx with flowing paragraphs; fill-in blanks and word spacing kept | pdf2docx + `pdf-word.py` |
 | **Office → PDF** | Word, Excel, PowerPoint, OpenDocument, RTF, TXT to PDF | LibreOffice |
 | **PDF → JPG** | One picture per page, three sharpness levels | Poppler |
 | **JPG → PDF** | Photos and scans into one PDF, picture-size or A4/Letter pages | img2pdf |
