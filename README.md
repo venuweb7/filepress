@@ -1,14 +1,17 @@
 # Filepress
 
-**Private PDF and file tools on your own server.** Drop a file, pick a job, download the result.
-Everything is processed inside your container and wiped an hour later. No third party ever sees a page.
+**Private PDF and picture tools on your own server.** Drop a file, pick a job, download the result.
+Everything is processed inside your container and wiped an hour later. No third party ever sees a page or a photo.
 
-Think of the popular online PDF sites, but running on a machine you control, with no accounts, no
-watermarks and nothing kept.
+Think of the popular online PDF and image sites, but running on a machine you control, with no accounts, no
+watermarks and nothing kept. Filepress recognises what you dropped (a PDF, a picture, or a Word/Excel/PowerPoint
+file) and shows only the tools that fit it.
 
 ![Filepress start screen](docs/screenshots/start.png)
 
 ## What it does
+
+### PDF tools
 
 | Tool | What you get | Engine underneath |
 |---|---|---|
@@ -24,6 +27,14 @@ watermarks and nothing kept.
 | **Rotate** | Pages turned 90° either way or upside down | qpdf |
 | **Protect** | 256-bit password lock | qpdf |
 | **Page numbers** | Numbers stamped in the style and position you choose | pdf-lib |
+
+A Word, Excel or PowerPoint file dropped on any PDF tool is turned into a PDF first, automatically, so you can
+compress, merge or sign an Office document in one go.
+
+### Picture tools
+
+| Tool | What you get | Engine underneath |
+|---|---|---|
 | **Compress picture** | Smaller JPG/PNG, three levels, camera metadata removed | ImageMagick |
 | **Resize** | By percent or to a pixel box, proportions kept or exact | ImageMagick |
 | **Crop** | Cut to a shape (1:1, 4:3, 16:9…) from a chosen side, or trim plain borders | ImageMagick |
@@ -33,18 +44,20 @@ watermarks and nothing kept.
 | **Upscale** | 2×, 3× or 4× enlargement with a light sharpen (plain resampling, not AI) | ImageMagick |
 | **Watermark** | Your text stamped in a corner, the middle, or tiled across the picture | ImageMagick |
 | **Meme** | Top and bottom captions in classic white-on-black-outline capitals | ImageMagick |
-| **Blur faces** | Faces found and blurred on our server with a small open-source model | OpenCV + YuNet |
+| **Blur faces** | Faces found and blurred on your server with a small open-source model | OpenCV + YuNet |
 
-Pictures can be JPG, PNG, GIF, WEBP, BMP, TIFF or HEIC. A Word, Excel or PowerPoint file dropped on any PDF tool is
-turned into a PDF first, automatically. Three more picture tools (photo editor, remove background, web page → picture)
-are listed as "Soon" and not built yet.
+Pictures can be JPG, PNG, GIF, WEBP, BMP, TIFF or HEIC. Phone photos keep their correct orientation, and every
+output has the camera metadata (including GPS position) removed. Three more picture tools (photo editor, remove
+background, web page → picture) are shown as "Soon" and not built yet.
 
 Results can be chained: compress, then sign, then protect, without uploading again.
 
 ## How it feels
 
-Pick a job and its settings appear in place, with the expected result size shown right on the buttons.
-Every file shows a real preview, rendered in your browser before anything is uploaded.
+The start page has two tabs, PDF tools and picture tools, or you simply drop a file. Filepress reads the file
+type and asks "What do you want to do with this PDF?" (or picture, or Office file), showing only the tools that
+fit; a link reveals the rest. Pick a job and its settings appear in place, with the expected result size shown
+right on the buttons. Every file shows a real preview, rendered in your browser before anything is uploaded.
 
 ![Choosing a job](docs/screenshots/job.png)
 
@@ -52,12 +65,15 @@ When a job joins several files, a page-order strip appears. Drag a card to move 
 
 ![Page order](docs/screenshots/order.png)
 
-A ring fills while the server works, then the result page shows before and after sizes, a download button,
-a delete button and a timer counting down to the automatic wipe.
+A ring fills while the server works. The result page then shows before and after sizes and one Download
+button with a five-second ring: the file downloads by itself, or straight away when you click. Next to it a
+"Work on another document" box starts a fresh job, the tools that fit the result let you keep going with it,
+and a quiet line shows the countdown to the automatic wipe with a "Delete it now" link.
 
 ![Result](docs/screenshots/result.png)
 
-It works the same on a phone: three tools per row and the action button pinned to the bottom.
+It works the same on a phone: three tools per row, the action button pinned to the bottom, and a
+"Work on another document" button right under Download.
 
 ![Phone](docs/screenshots/phone.png)
 
@@ -70,6 +86,8 @@ It works the same on a phone: three tools per row and the action button pinned t
 * An optional **access code** locks the whole site, so only people you tell can use it.
 * The converters run as a **separate, unprivileged Linux user** with memory, CPU and time limits, so a hostile
   file cannot read the server's secrets or take the site down.
+* Picture outputs have EXIF metadata stripped, so a shared photo no longer carries the place it was taken.
+  Blur faces runs a small open-source face model on your server; nothing is sent to any outside service.
 * No analytics, no outside fonts or scripts, strict Content Security Policy, nothing logged about your files.
 
 Details in [docs/DESIGN.md](docs/DESIGN.md).
@@ -143,8 +161,8 @@ normally touch.
 ## Develop
 
 Needs Node 22+ and the engines listed in the Dockerfile (`ghostscript qpdf poppler-utils libreoffice-writer
-libreoffice-calc libreoffice-impress ocrmypdf tesseract-ocr-eng tesseract-ocr-tel img2pdf imagemagick` plus
-`pip install pdf2docx`).
+libreoffice-calc libreoffice-impress ocrmypdf tesseract-ocr-eng tesseract-ocr-tel img2pdf imagemagick
+libmagickcore-6.q16-6-extra` plus `pip install pdf2docx opencv-python-headless`).
 
 ```bash
 npm install
@@ -160,8 +178,12 @@ python3 -I docs/make_screenshots.py  # regenerate the README pictures
 * Typed signatures use a Latin handwriting font; other scripts can be drawn instead.
 * Signatures and page numbers go to a chosen corner; free placement on a page preview is on the list.
 * OCR ships with English and Telugu; add more `tesseract-ocr-<lang>` packages to the Dockerfile for other languages.
+* Upscale is plain enlargement with sharpening, not an AI model; it will not invent detail.
+* Blur faces can miss faces seen from the side or very small ones. Check the result before sharing it.
+* Crop works by shape (1:1, 16:9…) and side; a free-hand crop editor is not built yet. HEIC inputs come back as JPG.
+* Pictures are limited to 60 megapixels and 500 frames; animated GIFs are flattened to their first frame.
 
 ## Licence
 
-MIT for this code (`LICENSE`). Bundled fonts are under the SIL Open Font License and the engines keep their own
-licences; see `licenses/README.md`.
+MIT for this code (`LICENSE`). Bundled fonts are under the SIL Open Font License, the YuNet face model is MIT,
+and the engines keep their own licences; see `licenses/README.md`.
