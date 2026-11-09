@@ -307,10 +307,13 @@ for (const [dropSel, inputSel, goWork, fresh] of [['#drop0', '#file0', true, fal
 }
 
 /* ---------- work view ---------- */
+/* Back: to the result page when this job continues an earlier result, otherwise to the start page. */
+$('#back').addEventListener('click', e => { e.preventDefault(); location.hash = S.fromJob ? `#done/${S.fromJob.id}` : '#start'; });
 let sortablesReady = false;
 function renderWork() {
   const list = currentList();
   const k = inputKind();
+  $('#backTxt').textContent = S.fromJob ? 'Back to the result' : 'Back';
   list.forEach(f => ensureThumb(f.file || f));
   const multi = !S.fromJob && list.length > 1;
   $('#files').replaceChildren(...list.map((f, i) => {

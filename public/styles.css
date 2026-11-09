@@ -132,7 +132,9 @@ h1{margin:0;font:700 clamp(30px,3.8vw,48px)/1.02 var(--fd);letter-spacing:-.035e
 }
 
 /* ---------- WORK ---------- */
-.workpg{padding-top:30px;padding-bottom:70px;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:22px;align-items:start}
+.workpg{padding-top:18px;padding-bottom:70px;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:22px;align-items:start}
+.back{grid-column:1/-1;justify-self:start;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:999px;background:var(--sur);border:1px solid var(--line);font-weight:700;font-size:13.5px;color:var(--tx2);box-shadow:0 6px 20px -14px rgba(15,23,42,.3);transition:all .25s;margin-bottom:-6px}
+@media(hover:hover){.back:hover{color:var(--tx);border-color:var(--line2);transform:translateX(-2px)}}
 .card{background:var(--sur);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:22px}
 .card h5{margin:0 0 14px;display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:14px;color:var(--tx2)}
 .card h5 small{font-weight:600;color:var(--tx3);font-size:12.5px}
@@ -365,7 +367,8 @@ h1{margin:0;font:700 clamp(30px,3.8vw,48px)/1.02 var(--fd);letter-spacing:-.035e
   .tile small{display:none}
   .trust{gap:14px 20px;margin:30px 0 40px;font-size:13px}
   .tiles.pick{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .workpg{padding-top:18px;padding-bottom:110px;gap:14px}
+  .workpg{padding-top:12px;padding-bottom:110px;gap:14px}
+  .back{margin-bottom:-2px}
   .card{padding:18px;border-radius:22px}
   .act{display:none}
   .stickybar{display:flex;align-items:center;gap:12px;position:fixed;left:0;right:0;bottom:0;z-index:30;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:rgba(246,247,251,.9);backdrop-filter:blur(16px);border-top:1px solid var(--line)}
