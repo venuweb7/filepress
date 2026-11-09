@@ -8,7 +8,7 @@ import { config } from '../config.js';
 
 export const KINDS = {
   pdf: { exts: ['pdf'], label: 'PDF' },
-  image: { exts: ['jpg', 'jpeg', 'png'], label: 'JPG or PNG picture' },
+  image: { exts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'heic', 'heif'], label: 'picture (JPG, PNG, GIF, WEBP, HEIC…)' },
   office: { exts: ['docx', 'doc', 'odt', 'rtf', 'txt', 'xlsx', 'xls', 'ods', 'pptx', 'ppt', 'odp'], label: 'Word, Excel or PowerPoint file' },
 };
 
@@ -16,7 +16,7 @@ export const extOf = name => (name.toLowerCase().match(/\.([a-z0-9]+)$/) || [, '
 export const baseOf = name => name.replace(/\.[a-z0-9]+$/i, '') || 'file';
 
 /** Strip anything that is not safe in a file name or a converter's output pattern; keep it short. */
-const BAD_CHARS = new Set([0x5c, 0x2f, 0x3a, 0x2a, 0x3f, 0x22, 0x3c, 0x3e, 0x7c, 0x25]); // \ / : * ? " < > | %
+const BAD_CHARS = new Set([0x5c, 0x2f, 0x3a, 0x2a, 0x3f, 0x22, 0x3c, 0x3e, 0x7c, 0x25, 0x5b, 0x5d, 0x7b, 0x7d]); // \ / : * ? " < > | % [ ] { } (the last four are ImageMagick wildcards)
 const BAD_RANGES = [[0x00, 0x1f], [0x7f, 0x7f], [0x200b, 0x200f], [0x2028, 0x202e], [0x2066, 0x2069]]; // controls, zero-width, bidi
 const isBadChar = cp => BAD_CHARS.has(cp) || BAD_RANGES.some(([a, b]) => cp >= a && cp <= b);
 export function safeName(name) {
@@ -74,6 +74,21 @@ export function uniqueName(name, used) {
   if (!used.has(name)) { used.add(name); return name; }
   const ext = extOf(name), base = baseOf(name);
   for (let i = 2; ; i++) { const n = `${base}-${i}.${ext}`; if (!used.has(n)) { used.add(n); return n; } }
+}
+
+/** Width, height, transparency and frame count of a picture (first frame only is ever decoded). Refuses huge ones. */
+export const MAX_PIXELS = 60e6;     // a 60 MP photo is ~340 MB in memory
+export const MAX_FRAMES = 500;      // animated GIF / multi-page TIFF
+export async function pictureProbe(file, dir) {
+  const { out } = await run('identify', ['-ping', '-format', '%w %h %A %n %[orientation]\n', file], { cwd: dir, timeoutSec: 60, memMb: 1024 });
+  const m = out.trim().split('\n')[0]?.match(/^(\d+) (\d+) (\S+) (\d+) ?(\S*)$/);
+  if (!m) throw new ToolError('This does not look like a picture we can read.');
+  // Phone photos are often stored sideways with a "rotate me" flag; the tools apply it (-auto-orient), so report the size as displayed.
+  const sideways = ['LeftTop', 'RightTop', 'RightBottom', 'LeftBottom'].includes(m[5]);
+  const w = sideways ? +m[2] : +m[1], h = sideways ? +m[1] : +m[2], frames = +m[4];
+  if (w * h > MAX_PIXELS) throw new ToolError(`This picture is very large (${Math.round(w * h / 1e6)} MP). Pictures of up to ${MAX_PIXELS / 1e6} MP are supported.`);
+  if (frames > MAX_FRAMES) throw new ToolError(`This picture has ${frames} frames; up to ${MAX_FRAMES} are supported.`);
+  return { w, h, alpha: /true|blend/i.test(m[3]), frames };
 }
 
 export const timeouts = { normal: () => config.toolTimeoutSec, heavy: () => config.heavyTimeoutSec };

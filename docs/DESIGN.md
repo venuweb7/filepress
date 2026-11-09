@@ -17,8 +17,11 @@ browser (public/)  ──multipart──▶  POST /api/jobs  ──▶  job fold
   A restart forgets everything, which is fine: nothing is meant to outlive the hour anyway.
 * **Engines** (all Debian packages, pinned by the base image): Ghostscript (compress), qpdf (merge, split,
   rotate, protect), Poppler (`pdftoppm`, `pdfinfo`), LibreOffice headless (Office → PDF), OCRmyPDF + Tesseract
-  `eng`/`tel` (Scan → Text), img2pdf + ImageMagick (pictures), pdf2docx (PDF → Word), pdf-lib in a separate
-  Node worker process (page numbers, signatures).
+  `eng`/`tel` (Scan → Text), img2pdf + ImageMagick (pictures: PDF ↔ JPG and the ten picture tools in `pictures.js`),
+  OpenCV + the YuNet model in `assets/models` (Blur faces, via `blur-faces.py`), pdf2docx (PDF → Word), pdf-lib in a
+  separate Node worker process (page numbers, signatures).
+* **Office first.** A PDF tool that receives only Office files converts them to PDF (`officeToPdfInputs`) before it
+  runs, so Word/Excel/PowerPoint can be dropped on Compress, Merge, Sign and so on directly.
 * **Front end** is plain HTML/CSS/JS, served statically. Hash routes: `#start`, `#work[/tool]`, `#run/<id>`, `#done/<id>`.
   Options are kept per tool, an upload is cancelled when you leave the screen, and Back works from the result page.
 

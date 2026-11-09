@@ -23,20 +23,20 @@
 <!-- ============ START ============ -->
 <section data-view="start" class="on"><div class="wrap">
   <div class="hero">
-    <h1 class="in">Drop a PDF. Pick a job. <span class="g">Done.</span></h1>
-    <p class="in d1">Compress, merge, convert and sign without handing your documents to anyone. Everything runs on <b>our own server</b> and is <b>wiped <span data-retention>60</span> minutes later</b>.</p>
+    <h1 class="in">Drop a file. Pick a job. <span class="g">Done.</span></h1>
+    <p class="in d1"><span class="l">PDFs and pictures: compress, convert, edit and sign — without handing your documents to anyone. Everything runs on <b>our own server</b> and is <b>wiped <span data-retention>60</span> minutes later</b>.</span><span class="m">Compress, convert, edit and sign — privately.</span></p>
   </div>
   <div class="dropwrap in d2">
     <div class="orbit" aria-hidden="true" id="orbit"></div>
     <label class="drop" id="drop0">
       <input type="file" multiple id="file0">
-      <div class="doc" aria-hidden="true"><div class="pg"></div><div class="fold"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div></div>
+      <div class="docs" aria-hidden="true"><i data-k="DOC"></i><i data-k="PDF"></i><i class="img" data-k="JPG"></i></div>
       <h2>Drop files here or <u>browse</u></h2>
-      <p>PDF, Word, Excel, PowerPoint, JPG, PNG · up to <span data-maxmb>200</span> MB each · several files at once</p>
+      <p><span class="l">PDF, Word, Excel, PowerPoint · JPG, PNG, GIF, WEBP, HEIC · up to <span data-maxmb>200</span> MB each · several files at once</span><span class="m">PDF, Office or pictures · up to <span data-maxmb>200</span> MB each</span></p>
     </label>
   </div>
   <div class="quick in d3">
-    <div class="lbl">or start from a tool</div>
+    <div class="qhead"><span class="lbl">or start from a tool</span><div class="tabs" id="tabs" role="tablist"><button type="button" role="tab" data-tab="pdf" class="on">PDF tools <small id="nPdf"></small></button><button type="button" role="tab" data-tab="image">Picture tools <small id="nImg"></small></button></div></div>
     <div class="tiles" id="tiles0"></div>
   </div>
   <div class="trust in d4">
@@ -56,10 +56,11 @@
     <p class="warn" id="fileWarn" hidden></p>
   </div>
   <div class="card in d1">
-    <h5>What do you want to do?</h5>
+    <h5 id="workQ">What do you want to do?</h5>
     <div class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="Type: compress, merge, word, sign…" autocomplete="off"></div>
     <div class="tiles pick" id="tiles1"></div>
     <div class="empty" id="empty">Nothing matches. Try "compress" or "merge".</div>
+    <div class="morelink" id="more" hidden></div>
     <div class="opts" id="opts"><div><div class="optin" id="optin"></div></div></div>
     <div class="act" id="act" hidden><div class="est" id="est"></div><button class="btn pri" id="go">Run <span class="ar">→</span></button></div>
   </div>
@@ -84,13 +85,26 @@
     <p id="dSub"></p>
     <div class="sizes" id="sizes"><div class="s"><b id="dBefore">—</b><small>before</small></div><span class="ar">→</span><div class="s after"><b id="dAfter">—</b><small>after</small></div></div>
     <div class="bar" aria-hidden="true" id="dBarWrap"><i id="dBar"></i></div>
-    <div class="resacts"><a class="btn pri" id="dl" href="#" download>Download <span class="ar">↓</span></a><button class="btn soft" id="del">Delete now</button></div>
-    <div class="timer"><i></i>Wiped from our server in <b id="tmr">60:00</b></div>
+    <div class="dlwrap">
+      <a class="btn pri dl" id="dl" href="#" download><span class="ring" id="ring"><svg viewBox="0 0 34 34" aria-hidden="true"><circle class="bgc" cx="17" cy="17" r="14"/><circle class="fgc" id="fgc" cx="17" cy="17" r="14"/></svg><b id="cnt">5</b></span><span id="dlTxt">Download</span></a>
+      <div class="dlnote" id="dlNote"></div>
+      <a class="btn another" id="another" href="#start"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>Work on another document <span class="ar">→</span></a>
+    </div>
+    <div class="keep" id="keepRow"><i></i>Wiped from our server in <b id="tmr">60:00</b><span class="sep">·</span><button type="button" id="del">Delete it now</button></div>
   </div>
   <div class="card next in d1">
-    <h5>Keep going with this file</h5>
-    <div class="tiles" id="tiles2"></div>
-    <div class="foot"><a class="btn ghost" href="#start">Start over with a new file</a></div>
+    <h5><span class="d">What next?</span><span class="m">Or keep going with this file</span></h5>
+    <label class="newdrop" id="drop2">
+      <input type="file" id="file2" multiple>
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
+      <span class="tx"><b>Work on another document</b><small>Drop a new file here or <u>browse</u> your computer</small></span>
+      <span class="go">→</span>
+    </label>
+    <div class="chainwrap" id="chainwrap">
+      <div class="or">or keep going with this file</div>
+      <div class="chip"><span class="k" id="chipK">PDF</span><span id="chipName"></span><em id="chipSize"></em></div>
+      <div class="tiles" id="tiles2"></div>
+    </div>
   </div>
 </div></div></section>
 

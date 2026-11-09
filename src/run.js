@@ -18,6 +18,7 @@ const live = new Map(); // job folder -> Set<child>, so a deleted job can stop i
  */
 export function run(cmd, args, opt) {
   return new Promise((resolve, reject) => {
+    if (args.some(a => /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(String(a)))) return reject(new ToolError('That text contains characters that cannot be used.', `${cmd}: control character in an argument`));
     const envPairs = {
       PATH: '/usr/local/bin:/usr/bin:/bin',
       HOME: opt.cwd,

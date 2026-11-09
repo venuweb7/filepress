@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import PQueue from 'p-queue';
 import { config } from './config.js';
 import { tools } from './tools/index.js';
+import { officeToPdfInputs } from './tools/convert.js';
 import { ToolError, killUnder } from './run.js';
 
 const jobs = new Map();
@@ -61,19 +62,29 @@ export function getJob(id, owner) {
 /** Keep converter errors useful for us but free of the user's file names. */
 function scrub(job, text) {
   let t = String(text || '').replaceAll(jobDir(job.id), '<job>');
-  for (const f of job.files) { t = t.replaceAll(f.stored, '<file>').replaceAll(f.name, '<file>'); }
+  for (const f of job.files) { t = t.replaceAll(f.stored, '<file>').replaceAll(f.name, '<file>'); const base = f.name.replace(/\.[a-z0-9]+$/i, ''); if (base.length > 2) t = t.replaceAll(base, '<file>'); }
   return t.slice(-600);
 }
 
+/** A PDF tool given only Office files: convert them to PDF first, then run as usual. */
+const needsOfficeStep = (tool, files) => tool.accepts === 'pdf' && tool.id !== 'word-pdf' && files.length > 0 && files.every(f => f.kind === 'office');
+
 export function enqueue(job) {
   const tool = tools[job.toolId];
-  const inputCheck = tool.checkInputs(job.files);
+  const viaOffice = needsOfficeStep(tool, job.files);
+  const officeMax = Math.min(10, config.maxFiles);   // the same cap Office -> PDF has: each file is a LibreOffice run
+  const inputCheck = viaOffice && job.files.length > officeMax ? `Up to ${officeMax} Office files at a time; convert them to PDF first for more.` : tool.checkInputs(viaOffice ? job.files.map(f => ({ ...f, kind: 'pdf' })) : job.files);
   if (inputCheck) { job.status = 'error'; job.error = inputCheck; finish(job); return; }
   queue.add(async () => {
     if (!jobs.has(job.id)) return; // deleted while queued
     job.status = 'running'; job.step = 'Checking the file'; job.progress = 5;
     const report = (progress, step) => { if (step) job.step = step; if (progress != null) job.progress = Math.max(job.progress, Math.min(99, progress)); };
     try {
+      if (viaOffice) {
+        job.files = await officeToPdfInputs(job.files, jobDir(job.id), report);
+        if (!jobs.has(job.id)) return;
+        job.progress = 40;
+      }
       const result = await tool.run({ job, dir: jobDir(job.id), report });
       if (!jobs.has(job.id)) return; // deleted while running: folder is already gone
       const st = await fs.stat(path.join(jobDir(job.id), 'out', result.file));

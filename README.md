@@ -24,6 +24,20 @@ watermarks and nothing kept.
 | **Rotate** | Pages turned 90° either way or upside down | qpdf |
 | **Protect** | 256-bit password lock | qpdf |
 | **Page numbers** | Numbers stamped in the style and position you choose | pdf-lib |
+| **Compress picture** | Smaller JPG/PNG, three levels, camera metadata removed | ImageMagick |
+| **Resize** | By percent or to a pixel box, proportions kept or exact | ImageMagick |
+| **Crop** | Cut to a shape (1:1, 4:3, 16:9…) from a chosen side, or trim plain borders | ImageMagick |
+| **Convert to JPG** | PNG, GIF, WEBP, HEIC, TIFF, BMP to JPG | ImageMagick |
+| **Convert from JPG** | JPG to PNG, WEBP, GIF, BMP or TIFF | ImageMagick |
+| **Rotate picture** | Turn 90°/180°, mirror or flip, many at once | ImageMagick |
+| **Upscale** | 2×, 3× or 4× enlargement with a light sharpen (plain resampling, not AI) | ImageMagick |
+| **Watermark** | Your text stamped in a corner, the middle, or tiled across the picture | ImageMagick |
+| **Meme** | Top and bottom captions in classic white-on-black-outline capitals | ImageMagick |
+| **Blur faces** | Faces found and blurred on our server with a small open-source model | OpenCV + YuNet |
+
+Pictures can be JPG, PNG, GIF, WEBP, BMP, TIFF or HEIC. A Word, Excel or PowerPoint file dropped on any PDF tool is
+turned into a PDF first, automatically. Three more picture tools (photo editor, remove background, web page → picture)
+are listed as "Soon" and not built yet.
 
 Results can be chained: compress, then sign, then protect, without uploading again.
 

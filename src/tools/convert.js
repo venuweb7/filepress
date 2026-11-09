@@ -39,6 +39,21 @@ async function officeToPdf(dir, f, report, used) {
   return name;
 }
 
+/** Turn every Office input into a PDF kept in in/, so a PDF tool can run on them as if PDFs had been uploaded. */
+export async function officeToPdfInputs(files, dir, report) {
+  const used = new Set(), out = [];
+  for (const [i, f] of files.entries()) {
+    report(5 + Math.round(30 * i / files.length), files.length > 1 ? `Turning file ${i + 1} of ${files.length} into a PDF first` : 'Turning the file into a PDF first');
+    const produced = await officeToPdf(dir, f, () => {}, used);
+    const stored = `${f.stored.replace(/\.[a-z0-9]+$/i, '')}.pdf`;
+    await fs.rename(outPath(dir, produced), inPath(dir, { stored }));
+    const st = await fs.stat(inPath(dir, { stored }));
+    // name/size stay those of the upload, so the result page compares against what the user actually sent
+    out.push({ name: f.name, stored, size: f.size, kind: 'pdf', pdfSize: st.size });
+  }
+  return out;
+}
+
 export const wordToPdf = {
   id: 'word-pdf', name: 'Office → PDF', accepts: 'office', minFiles: 1, maxFiles: Math.min(10, config.maxFiles),
   parseOptions: () => ({}),

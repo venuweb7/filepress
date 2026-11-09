@@ -17,24 +17,54 @@ const I = {
   rotate: '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>',
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   num: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
+  /* picture tools */
+  icompress: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 9l3 3 3-3M9 15l3-3 3 3"/>',
+  resize: '<path d="M21 3h-6M21 3v6M21 3l-7 7"/><rect x="3" y="11" width="10" height="10" rx="2"/>',
+  crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
+  tojpg: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 12h10M13 8l4 4-4 4"/>',
+  fromjpg: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M17 12H7M11 8l-4 4 4 4"/>',
+  edit: '<path d="M4 6h8M16 6h4M4 12h3M11 12h9M4 18h12M20 18h0"/><circle cx="14" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  upscale: '<rect x="3" y="3" width="10" height="10" rx="2"/><path d="M13 21h6a2 2 0 0 0 2-2v-6"/><path d="M17 3h4v4M21 3l-5 5"/>',
+  bg: '<path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l9.6-9.6a2 2 0 0 1 2.8 0l4.2 4.2a2 2 0 0 1 0 2.8L13 19"/><path d="M22 21H7M5 11l9 9"/>',
+  stamp: '<path d="M5 21h14M6 17h12v-3a2 2 0 0 0-2-2h-1l-1-6a2 2 0 0 0-4 0l-1 6H8a2 2 0 0 0-2 2z"/>',
+  meme: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>',
+  html: '<path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 4l-4 16"/>',
+  blur: '<circle cx="12" cy="12" r="9" stroke-dasharray="3 3"/><path d="M9 10h.01M15 10h.01M9 15c1 1 5 1 6 0"/>',
 };
 const svg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${I[k]}</svg>`;
+// tab: which start-page tab the tile sits in. soon: shown but not built yet. accepts (client side) only for "soon" tools.
 const TOOLS = [
-  { id: 'compress', n: 'Compress', s: 'Make it smaller', v: 'Compress', ic: 'compress', t: '#EEF3FF', c: '#2563EB', kw: 'smaller shrink size email', ing: 'Compressing' },
-  { id: 'merge', n: 'Merge', s: 'Many into one', v: 'Merge', ic: 'merge', t: '#F1EEFF', c: '#6D5BF6', kw: 'combine join together', ing: 'Merging' },
-  { id: 'split', n: 'Split', s: 'Pages out', v: 'Split', ic: 'split', t: '#FFF1E8', c: '#F97316', kw: 'pages extract cut', ing: 'Splitting' },
-  { id: 'pdf-word', n: 'PDF → Word', s: 'Make it editable', v: 'Convert', ic: 'word', t: '#E8F1FF', c: '#1D6FE8', kw: 'docx edit convert', ing: 'Converting' },
-  { id: 'word-pdf', n: 'Office → PDF', s: 'Word, Excel, PowerPoint', v: 'Convert', ic: 'topdf', t: '#FFECEC', c: '#E5484D', kw: 'docx word excel ppt convert', ing: 'Converting' },
-  { id: 'pdf-jpg', n: 'PDF → JPG', s: 'Pages to pictures', v: 'Convert', ic: 'img', t: '#EAF8EF', c: '#16A34A', kw: 'image picture photo', ing: 'Drawing pages' },
-  { id: 'jpg-pdf', n: 'JPG → PDF', s: 'Pictures to PDF', v: 'Convert', ic: 'imgpdf', t: '#E6F7F6', c: '#0EA5A4', kw: 'image picture photo scan png', ing: 'Building the PDF' },
-  { id: 'ocr', n: 'Scan → Text', s: 'Searchable (OCR)', v: 'Read text', ic: 'ocr', t: '#FFF6E0', c: '#D97706', kw: 'ocr searchable copy recognise', ing: 'Reading the scan' },
-  { id: 'sign', n: 'Sign', s: 'Add signature', v: 'Sign', ic: 'sign', t: '#FFECF3', c: '#DB2777', kw: 'signature esign', ing: 'Signing' },
-  { id: 'rotate', n: 'Rotate', s: 'Fix orientation', v: 'Rotate', ic: 'rotate', t: '#EEF1F6', c: '#475569', kw: 'turn sideways upside', ing: 'Rotating' },
-  { id: 'protect', n: 'Protect', s: 'Add a password', v: 'Protect', ic: 'lock', t: '#ECEEFF', c: '#4F46E5', kw: 'password lock encrypt', ing: 'Locking' },
-  { id: 'numbers', n: 'Page numbers', s: 'Stamp numbers', v: 'Add numbers', ic: 'num', t: '#E6F6FC', c: '#0891B2', kw: 'number stamp footer', ing: 'Numbering pages' },
+  /* PDF tools */
+  { id: 'compress', n: 'Compress', s: 'Make it smaller', v: 'Compress', ic: 'compress', t: '#EEF3FF', c: '#2563EB', kw: 'smaller shrink size email', ing: 'Compressing', tab: 'pdf' },
+  { id: 'merge', n: 'Merge', s: 'Many into one', v: 'Merge', ic: 'merge', t: '#F1EEFF', c: '#6D5BF6', kw: 'combine join together', ing: 'Merging', tab: 'pdf' },
+  { id: 'split', n: 'Split', s: 'Pages out', v: 'Split', ic: 'split', t: '#FFF1E8', c: '#F97316', kw: 'pages extract cut', ing: 'Splitting', tab: 'pdf' },
+  { id: 'pdf-word', n: 'PDF → Word', s: 'Make it editable', v: 'Convert', ic: 'word', t: '#E8F1FF', c: '#1D6FE8', kw: 'docx edit convert', ing: 'Converting', tab: 'pdf' },
+  { id: 'word-pdf', n: 'Office → PDF', s: 'Word, Excel, PowerPoint', v: 'Convert', ic: 'topdf', t: '#FFECEC', c: '#E5484D', kw: 'docx word excel ppt convert', ing: 'Converting', tab: 'pdf' },
+  { id: 'pdf-jpg', n: 'PDF → JPG', s: 'Pages to pictures', v: 'Convert', ic: 'img', t: '#EAF8EF', c: '#16A34A', kw: 'image picture photo', ing: 'Drawing pages', tab: 'pdf' },
+  { id: 'jpg-pdf', n: 'JPG → PDF', s: 'Pictures to PDF', v: 'Convert', ic: 'imgpdf', t: '#E6F7F6', c: '#0EA5A4', kw: 'image picture photo scan png', ing: 'Building the PDF', tab: 'pdf' },
+  { id: 'ocr', n: 'Scan → Text', s: 'Searchable (OCR)', v: 'Read text', ic: 'ocr', t: '#FFF6E0', c: '#D97706', kw: 'ocr searchable copy recognise', ing: 'Reading the scan', tab: 'pdf' },
+  { id: 'sign', n: 'Sign', s: 'Add signature', v: 'Sign', ic: 'sign', t: '#FFECF3', c: '#DB2777', kw: 'signature esign', ing: 'Signing', tab: 'pdf' },
+  { id: 'rotate', n: 'Rotate', s: 'Fix orientation', v: 'Rotate', ic: 'rotate', t: '#EEF1F6', c: '#475569', kw: 'turn sideways upside', ing: 'Rotating', tab: 'pdf' },
+  { id: 'protect', n: 'Protect', s: 'Add a password', v: 'Protect', ic: 'lock', t: '#ECEEFF', c: '#4F46E5', kw: 'password lock encrypt', ing: 'Locking', tab: 'pdf' },
+  { id: 'numbers', n: 'Page numbers', s: 'Stamp numbers', v: 'Add numbers', ic: 'num', t: '#E6F6FC', c: '#0891B2', kw: 'number stamp footer', ing: 'Numbering pages', tab: 'pdf' },
+  /* Picture tools */
+  { id: 'img-compress', n: 'Compress picture', s: 'Smaller, same look', v: 'Compress', ic: 'icompress', t: '#EAF8EF', c: '#16A34A', kw: 'smaller shrink photo jpg png size', ing: 'Compressing', tab: 'image' },
+  { id: 'img-resize', n: 'Resize', s: 'By pixels or percent', v: 'Resize', ic: 'resize', t: '#E6F6FC', c: '#0891B2', kw: 'scale dimensions pixels percent shrink enlarge', ing: 'Resizing', tab: 'image' },
+  { id: 'img-crop', n: 'Crop', s: 'Square, 16:9, trim…', v: 'Crop', ic: 'crop', t: '#E8F1FF', c: '#1D6FE8', kw: 'cut square ratio trim border', ing: 'Cropping', tab: 'image' },
+  { id: 'to-jpg', n: 'Convert to JPG', s: 'PNG, WEBP, HEIC…', v: 'Convert', ic: 'tojpg', t: '#FFF6E0', c: '#D97706', kw: 'png webp heic gif tiff bmp jpeg convert', ing: 'Converting', tab: 'image' },
+  { id: 'from-jpg', n: 'Convert from JPG', s: 'To PNG, WEBP, GIF…', v: 'Convert', ic: 'fromjpg', t: '#FFF1E8', c: '#F97316', kw: 'png webp gif bmp tiff convert', ing: 'Converting', tab: 'image' },
+  { id: 'img-edit', n: 'Photo editor', s: 'Text, effects, frames', v: 'Edit', ic: 'edit', t: '#FFECF3', c: '#DB2777', kw: 'edit text effects frames stickers', ing: 'Editing', tab: 'image', soon: true, accepts: 'image' },
+  { id: 'upscale', n: 'Upscale', s: 'Enlarge 2–4×', v: 'Upscale', ic: 'upscale', t: '#F1EEFF', c: '#6D5BF6', kw: 'enlarge bigger resolution', ing: 'Enlarging', tab: 'image', new: true },
+  { id: 'remove-bg', n: 'Remove background', s: 'Cut out the subject', v: 'Remove', ic: 'bg', t: '#EEF3FF', c: '#2563EB', kw: 'background cutout transparent', ing: 'Cutting out', tab: 'image', soon: true, accepts: 'image' },
+  { id: 'watermark', n: 'Watermark', s: 'Stamp text on it', v: 'Add watermark', ic: 'stamp', t: '#ECEEFF', c: '#4F46E5', kw: 'stamp copyright text logo', ing: 'Stamping', tab: 'image' },
+  { id: 'meme', n: 'Meme', s: 'Caption a picture', v: 'Make the meme', ic: 'meme', t: '#FFF6E0', c: '#B45309', kw: 'caption text funny', ing: 'Captioning', tab: 'image' },
+  { id: 'img-rotate', n: 'Rotate picture', s: 'Turn or flip', v: 'Rotate', ic: 'rotate', t: '#EEF1F6', c: '#475569', kw: 'turn flip mirror sideways', ing: 'Rotating', tab: 'image' },
+  { id: 'html-img', n: 'Web page → picture', s: 'Paste a link, get a JPG', v: 'Capture', ic: 'html', t: '#E6F7F6', c: '#0EA5A4', kw: 'html url website screenshot', ing: 'Capturing', tab: 'image', soon: true, accepts: 'none' },
+  { id: 'blur', n: 'Blur faces', s: 'Hide faces in a photo', v: 'Blur faces', ic: 'blur', t: '#FFECEC', c: '#E5484D', kw: 'privacy face anonymise hide', ing: 'Finding faces', tab: 'image', new: true },
 ];
-const KIND_EXT = { pdf: ['pdf'], image: ['jpg', 'jpeg', 'png'], office: ['docx', 'doc', 'odt', 'rtf', 'txt', 'xlsx', 'xls', 'ods', 'pptx', 'ppt', 'odp'] };
-const KIND_LABEL = { pdf: 'a PDF', image: 'a JPG or PNG picture', office: 'a Word, Excel or PowerPoint file' };
+const KIND_EXT = { pdf: ['pdf'], image: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'heic', 'heif'], office: ['docx', 'doc', 'odt', 'rtf', 'txt', 'xlsx', 'xls', 'ods', 'pptx', 'ppt', 'odp'] };
+const KIND_LABEL = { pdf: 'a PDF', image: 'a picture (JPG, PNG, GIF, WEBP, HEIC…)', office: 'a Word, Excel or PowerPoint file' };
+const KIND_WORD = { pdf: 'PDF', image: 'picture', office: 'Office file' };
 const extOf = n => (n.toLowerCase().match(/\.([a-z0-9]+)$/) || [, ''])[1];
 const kindOf = n => Object.keys(KIND_EXT).find(k => KIND_EXT[k].includes(extOf(n))) || null;
 
@@ -45,6 +75,9 @@ const S = {
   fromJob: null,                // {id, name, size} when chaining a previous result
   tool: null, opts: {},         // chosen tool; options kept PER TOOL id so they never leak between tools
   job: null, poll: null, timer: null, xhr: null, gen: 0,
+  tab: 'pdf',                   // start page: which tool tab is open
+  showAll: false,               // work page: show tools that do not fit the dropped file too
+  cd: null, autoDone: new Set(), // result page: 5-second auto-download, once per job
 };
 const opt = () => (S.tool ? (S.opts[S.tool.id] ??= {}) : {});
 const serverTool = id => (S.session?.tools || []).find(t => t.id === id);
@@ -123,7 +156,7 @@ async function loadSession() {
   $$('[data-app-name]').forEach(e => e.textContent = S.session.appName);
   $$('[data-retention]').forEach(e => e.textContent = S.session.limits.retentionMin);
   $$('[data-maxmb]').forEach(e => e.textContent = S.session.limits.maxFileMb);
-  document.title = `${S.session.appName} · PDF tools, private by design`;
+  document.title = `${S.session.appName} · PDF and picture tools, private by design`;
   $('#gate').hidden = !S.session.locked;
   if (S.session.locked) setTimeout(() => $('#gateCode').focus(), 50);
 }
@@ -140,7 +173,7 @@ $('#orbit').innerHTML = `<svg class="ring"><ellipse/></svg>` + OK.map((k, i) => 
 $$('#orbit .ob').forEach(el => el.style.animationDelay = `${-(el.dataset.i / OK.length * 44).toFixed(2)}s`);
 function fitOrbit() {
   const o = $('#orbit'), w = o.offsetWidth, h = o.offsetHeight; if (!w) return;
-  const cx = w / 2, cy = h / 2, rx = cx + 64, ry = cy + (innerHeight <= 800 ? 26 : 34);
+  const cx = w / 2, cy = h / 2, rx = cx + 64, ry = cy + (innerHeight <= 800 ? 6 : 14);   // flat enough that the chips clear the tool tabs below
   const d = `M ${cx - rx} ${cy} a ${rx} ${ry} 0 1 1 ${2 * rx} 0 a ${rx} ${ry} 0 1 1 ${-2 * rx} 0`;
   $$('#orbit .ob').forEach(el => el.style.offsetPath = `path("${d}")`);
   const sv = o.querySelector('svg'); sv.setAttribute('width', w); sv.setAttribute('height', h); sv.setAttribute('viewBox', `0 0 ${w} ${h}`);
@@ -153,11 +186,20 @@ function tile(t, href, cls = '') {
   const a = document.createElement('a');
   a.className = `tile${cls}`; a.href = href; a.dataset.id = t.id;
   a.style.setProperty('--t', t.t); a.style.setProperty('--c', t.c);
-  a.innerHTML = `<span class="ic">${svg(t.ic)}</span><b>${t.n}</b><small>${t.s}</small>`;
+  if (t.soon) a.classList.add('soon');
+  a.innerHTML = `<span class="ic">${svg(t.ic)}</span><b>${t.n}</b><small>${t.s}</small>${t.soon ? '<span class="new">Soon</span>' : t.new ? '<span class="new">New</span>' : ''}`;
   return a;
 }
-function fillTiles(el, hrefOf, clsOf = () => '') { el.replaceChildren(...TOOLS.map(t => tile(t, hrefOf(t), clsOf(t)))); }
-fillTiles($('#tiles0'), t => `#work/${t.id}`);
+function fillTiles(el, hrefOf, clsOf = () => '', list = TOOLS) { el.replaceChildren(...list.map(t => tile(t, hrefOf(t), clsOf(t)))); }
+/* start page: two tabs, PDF tools and picture tools */
+function renderTiles0() {
+  const list = TOOLS.filter(t => t.tab === S.tab);
+  fillTiles($('#tiles0'), t => `#work/${t.id}`, () => '', list); $('#tiles0').classList.toggle('seven', list.length > 12);
+  $$('#tabs button').forEach(b => { b.classList.toggle('on', b.dataset.tab === S.tab); b.setAttribute('aria-selected', b.dataset.tab === S.tab); });
+}
+$('#nPdf').textContent = TOOLS.filter(t => t.tab === 'pdf').length; $('#nImg').textContent = TOOLS.filter(t => t.tab === 'image').length;
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.tab = b.dataset.tab; renderTiles0(); });
+renderTiles0();
 
 /** Which kind do the current inputs have? null when mixed or empty. */
 function inputKind() {
@@ -167,10 +209,16 @@ function inputKind() {
 const inputCount = () => (S.fromJob ? 1 : S.files.length);
 /** Could this tool take the current files at all (right kind, not too many)? Used to dim tiles. */
 function kindFits(t) {
-  const st = serverTool(t.id); if (!st) return true;
   const k = inputKind(), n = inputCount();
-  return !n || (k === st.accepts && n <= st.maxFiles);
+  const st = serverTool(t.id);
+  if (!st) return !n || t.accepts === k;   // "soon" tools: sorted by the kind they will take
+  // Office files may go to any PDF tool: the server turns them into PDFs first.
+  if (k === 'office' && st.id === 'pdf-word') return false;   // Word -> PDF -> Word again makes no sense
+  const accepts = k === 'office' && st.accepts === 'pdf' && st.id !== 'word-pdf' ? 'office' : st.accepts;
+  return !n || (k === accepts && n <= st.maxFiles);
 }
+/** Will the server have to turn Office files into PDFs before this tool runs? */
+const viaOffice = t => inputKind() === 'office' && serverTool(t.id)?.accepts === 'pdf' && t.id !== 'word-pdf';
 /** Can the job actually run right now (also enough files)? Used for the Run button. */
 function canRun(t) {
   const st = serverTool(t.id); if (!st) return inputCount() > 0;
@@ -180,20 +228,29 @@ function suggestion() {
   if (S.tool || !inputCount()) return null;
   const k = inputKind(), total = S.files.reduce((a, f) => a + f.size, 0);
   if (k === 'office') return 'word-pdf';
-  if (k === 'image') return 'jpg-pdf';
+  if (k === 'image') return inputCount() > 1 ? 'jpg-pdf' : total > 1.5e6 ? 'img-compress' : null;
   if (k === 'pdf' && inputCount() > 1) return 'merge';
   if (k === 'pdf' && total > 1.5e6) return 'compress';
   return null;
 }
 function renderTiles1() {
-  const sug = suggestion();
-  fillTiles($('#tiles1'), t => `#work/${t.id}`, t => (S.tool?.id === t.id ? ' on' : '') + (sug === t.id ? ' sug' : '') + (kindFits(t) ? '' : ' dim'));
+  const sug = suggestion(), k = inputKind();
+  // Tools that cannot take the dropped file are hidden, not just greyed out; a line underneath lets you see them anyway.
+  const hideMisfits = !!k && !S.showAll;
+  fillTiles($('#tiles1'), t => `#work/${t.id}`, t => (S.tool?.id === t.id ? ' on' : '') + (sug === t.id ? ' sug' : '') + (kindFits(t) || S.tool?.id === t.id ? '' : hideMisfits ? ' off' : ' dim'));
   $$('#tiles1 .tile.dim').forEach(el => { const st = serverTool(el.dataset.id); el.title = st ? `Needs ${KIND_LABEL[st.accepts]}${st.maxFiles === 1 ? ', one at a time' : ''}` : ''; });
+  $('#workQ').textContent = k ? `What do you want to do with ${inputCount() > 1 ? 'these' : 'this'} ${KIND_WORD[k]}${inputCount() > 1 ? 's' : ''}?` : 'What do you want to do?';
+  const hidden = $$('#tiles1 .tile.off').length, more = $('#more');
+  more.hidden = !k;
+  if (k) more.innerHTML = hideMisfits
+    ? `${hidden} tool${hidden === 1 ? '' : 's'} for other kinds of files hidden · <button type="button" id="showAll">Show everything</button>`
+    : `Showing every tool · <button type="button" id="showAll">Only tools that fit this ${KIND_WORD[k]}</button>`;
+  $('#showAll')?.addEventListener('click', () => { S.showAll = !S.showAll; renderTiles1(); });
   filter();
 }
 function filter() {
   const q = $('#q').value.trim().toLowerCase(); let n = 0;
-  $$('#tiles1 .tile').forEach(el => { const t = TOOLS.find(x => x.id === el.dataset.id); const hit = !q || (t.n + ' ' + t.s + ' ' + t.kw).toLowerCase().includes(q); el.classList.toggle('hide', !hit); if (hit) n++; });
+  $$('#tiles1 .tile').forEach(el => { const t = TOOLS.find(x => x.id === el.dataset.id); const hit = !q || (t.n + ' ' + t.s + ' ' + t.kw).toLowerCase().includes(q); el.classList.toggle('hide', !hit); if (hit && !el.classList.contains('off')) n++; });
   $('#empty').classList.toggle('on', !n);
 }
 $('#q').addEventListener('input', filter);
@@ -205,21 +262,22 @@ function setView(v) {
   window.scrollTo(0, 0);
   if (v === 'start') requestAnimationFrame(fitOrbit);
 }
-function stopPolling() { S.gen++; clearInterval(S.poll); S.poll = null; clearInterval(S.timer); S.timer = null; }
+function stopPolling() { S.gen++; clearInterval(S.poll); S.poll = null; clearInterval(S.timer); S.timer = null; clearInterval(S.cd); S.cd = null; }
 function route() {
   const h = location.hash || '#start';
   const [, view, arg] = h.match(/^#(\w+)(?:\/([\w-]+))?/) || [, 'start'];
   stopPolling();
   if (S.xhr && view !== 'run') { S.xhr.abort(); S.xhr = null; }   // leaving the run view cancels an upload in progress
   if (view === 'work') {
-    const t = arg ? TOOLS.find(x => x.id === arg) || null : null;
+    let t = arg ? TOOLS.find(x => x.id === arg) || null : null;
+    if (t?.soon) { toast(`${t.n} is coming soon`); t = null; history.replaceState(null, '', '#work'); }
     S.tool = t; setView('work'); renderWork();
     if (arg && innerWidth <= 720) setTimeout(() => $('#opts').scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
     return;
   }
   if (view === 'run' && arg) { setView('run'); watchJob(arg); return; }
   if (view === 'done' && arg) { setView('done'); showDone(arg); return; }
-  S.files = []; S.fromJob = null; S.tool = null; S.opts = {}; S.job = null;
+  S.files = []; S.fromJob = null; S.tool = null; S.opts = {}; S.job = null; S.showAll = false;
   setView('start');
 }
 addEventListener('hashchange', route);
@@ -239,12 +297,13 @@ function addFiles(list) {
   else if (added) toast(`${added} file${added > 1 ? 's' : ''} added`);
   return added;
 }
-for (const [dropSel, inputSel, goWork] of [['#drop0', '#file0', true], ['#add1', '#file1', false]]) {
+for (const [dropSel, inputSel, goWork, fresh] of [['#drop0', '#file0', true, false], ['#add1', '#file1', false, false], ['#drop2', '#file2', true, true]]) {
   const d = $(dropSel), inp = $(inputSel);
-  inp.addEventListener('change', () => { if (!inp.files.length) return; addFiles(inp.files); inp.value = ''; if (goWork) location.hash = S.tool ? `#work/${S.tool.id}` : '#work'; else renderWork(); });
+  const reset = () => { if (fresh) { S.files = []; S.fromJob = null; S.tool = null; S.opts = {}; S.showAll = false; } };
+  inp.addEventListener('change', () => { if (!inp.files.length) return; reset(); addFiles(inp.files); inp.value = ''; if (goWork) location.hash = S.tool ? `#work/${S.tool.id}` : '#work'; else renderWork(); });
   ['dragenter', 'dragover'].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(ev => d.addEventListener(ev, e => { e.preventDefault(); d.classList.remove('over'); }));
-  d.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; addFiles(e.dataTransfer.files); if (goWork) location.hash = '#work'; else renderWork(); });
+  d.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; reset(); addFiles(e.dataTransfer.files); if (goWork) location.hash = '#work'; else renderWork(); });
 }
 
 /* ---------- work view ---------- */
@@ -256,7 +315,7 @@ function renderWork() {
   const multi = !S.fromJob && list.length > 1;
   $('#files').replaceChildren(...list.map((f, i) => {
     const el = document.createElement('div'); el.className = 'file'; el.dataset.fi = i; el.style.animationDelay = `${i * 0.05}s`;
-    const kind = kindOf(f.name), bad = S.tool && serverTool(S.tool.id) && kind !== serverTool(S.tool.id).accepts;
+    const kind = kindOf(f.name), bad = S.tool && serverTool(S.tool.id) && kind !== serverTool(S.tool.id).accepts && !(kind === 'office' && viaOffice(S.tool));
     if (bad) el.classList.add('bad');
     const t = thumbs.get(f.file || f), ext = esc(extOf(f.name) || 'file');
     el.innerHTML = `${multi ? '<span class="hdl" data-hdl title="Drag to reorder">⋮⋮</span>' : ''}<div class="th">${t?.url ? `<img class="pv" src="${t.url}" alt="">` : ''}<i>${ext}</i></div><div class="nm"><b>${esc(f.name)}</b><small>${fmt(f.size)}${t?.pages ? ` · ${t.pages} page${t.pages > 1 ? 's' : ''}` : ''}${f.chained ? ' · result of the last job' : ''}</small></div>
@@ -281,7 +340,9 @@ function renderWork() {
   if (list.length && !k) { warn.textContent = 'These files are of different types. Use one type per job.'; warn.hidden = false; }
   else if (st && list.length && !kindFits(S.tool)) { warn.textContent = `${S.tool.n} needs ${KIND_LABEL[st.accepts]}${st.maxFiles === 1 ? ', one at a time' : ''}.`; warn.hidden = false; }
   else if (st && list.length && list.length < st.minFiles) { warn.textContent = `${S.tool.n} needs at least ${st.minFiles} files. Add ${st.minFiles - list.length} more.`; warn.hidden = false; }
+  else if (st && list.length && viaOffice(S.tool)) { warn.textContent = `Your ${list.length > 1 ? 'files are' : 'file is'} turned into a PDF first, then ${S.tool.n} runs on it.`; warn.hidden = false; warn.classList.add('note'); }
   else warn.hidden = true;
+  if (!warn.hidden && !(st && list.length && viaOffice(S.tool))) warn.classList.remove('note');
   renderTiles1();
   const t = S.tool, opts = $('#opts');
   if (!t) { opts.classList.remove('on'); $('#act').hidden = true; $('#sticky').hidden = true; return; }
@@ -333,6 +394,39 @@ function renderOpts(t) {
     case 'numbers': o.pos ??= 'bc'; o.format ??= 'n';
       html += `<div class="sub">Style</div>` + seg('format', [{ v: 'n', n: '1', s: 'just the number' }, { v: 'n/N', n: '1 / 12', s: 'with total' }, { v: 'Page n of N', n: 'Page 1 of 12', s: 'in words' }], o.format)
         + `<div class="sub">Position</div>` + seg('pos', [{ v: 'bl', n: 'Bottom left' }, { v: 'bc', n: 'Bottom middle' }, { v: 'br', n: 'Bottom right' }, { v: 'tc', n: 'Top middle' }, { v: 'tr', n: 'Top right' }], o.pos, 'slim'); break;
+    case 'img-compress': o.level ??= 'balanced';
+      html += seg('level', [{ v: 'smallest', n: 'Smallest', s: 'visibly softer' }, { v: 'balanced', n: 'Balanced', s: 'hard to tell' }, { v: 'best', n: 'Best', s: 'just trims the fat' }], o.level) + hint('JPG stays JPG and PNG stays PNG. Camera details (EXIF) are removed, which also saves space.'); break;
+    case 'img-resize': o.mode ??= 'percent'; o.percent ??= '50'; o.width ??= '1920'; o.height ??= '1080'; o.fit ??= 'inside';
+      html += seg('mode', [{ v: 'percent', n: 'By percent' }, { v: 'pixels', n: 'By pixels' }], o.mode, 'slim');
+      if (o.mode === 'percent') html += `<div class="sub">Scale</div>` + seg('percent', [{ v: '25', n: '25%' }, { v: '50', n: '50%' }, { v: '75', n: '75%' }, { v: '150', n: '150%' }, { v: '200', n: '200%' }], String(o.percent), 'slim');
+      else html += `<div class="fieldrow"><div class="field"><label for="f_w">Width (px)</label><input id="f_w" data-opt="width" type="number" inputmode="numeric" min="1" max="10000" value="${esc(o.width)}"></div><div class="field"><label for="f_h">Height (px)</label><input id="f_h" data-opt="height" type="number" inputmode="numeric" min="1" max="10000" value="${esc(o.height)}"></div></div>`
+        + `<div class="sub">Shape</div>` + seg('fit', [{ v: 'inside', n: 'Keep proportions', s: 'fits inside the box' }, { v: 'exact', n: 'Exactly this size', s: 'may stretch' }], o.fit);
+      break;
+    case 'img-crop': o.mode ??= 'ratio'; o.ratio ??= 'square'; o.from ??= 'center';
+      html += seg('mode', [{ v: 'ratio', n: 'Cut to a shape' }, { v: 'trim', n: 'Trim plain borders' }], o.mode, 'slim');
+      if (o.mode === 'ratio') html += `<div class="sub">Shape</div>` + seg('ratio', [{ v: 'square', n: '1:1' }, { v: '4:3', n: '4:3' }, { v: '3:2', n: '3:2' }, { v: '16:9', n: '16:9' }, { v: '3:4', n: '3:4' }, { v: '9:16', n: '9:16' }], o.ratio, 'slim')
+        + `<div class="sub">Keep which part</div>` + seg('from', [{ v: 'center', n: 'Middle' }, { v: 'top', n: 'Top' }, { v: 'bottom', n: 'Bottom' }, { v: 'left', n: 'Left' }, { v: 'right', n: 'Right' }], o.from, 'slim') + hint('The biggest rectangle of that shape that fits in the picture is kept.');
+      else html += hint('Removes a plain-coloured frame around the picture (white or black edges, scanner borders).');
+      break;
+    case 'to-jpg': o.quality ??= '90';
+      html += seg('quality', [{ v: '80', n: 'Smaller', s: '80' }, { v: '90', n: 'Normal', s: '90' }, { v: '96', n: 'Sharpest', s: '96' }], o.quality) + hint('Transparent areas become white. Animated GIFs keep only their first frame.'); break;
+    case 'from-jpg': o.format ??= 'png';
+      html += seg('format', [{ v: 'png', n: 'PNG' }, { v: 'webp', n: 'WEBP' }, { v: 'gif', n: 'GIF' }, { v: 'bmp', n: 'BMP' }, { v: 'tiff', n: 'TIFF' }], o.format, 'slim'); break;
+    case 'img-rotate': o.turn ??= '90';
+      html += seg('turn', [{ v: '90', n: '90° right', s: '↻' }, { v: '-90', n: '90° left', s: '↺' }, { v: '180', n: 'Upside down', s: '180°' }, { v: 'flop', n: 'Mirror', s: 'left ↔ right' }, { v: 'flip', n: 'Flip', s: 'top ↔ bottom' }], o.turn); break;
+    case 'upscale': o.factor ??= '2';
+      html += seg('factor', [{ v: '2', n: '2×', s: 'twice as wide' }, { v: '3', n: '3×' }, { v: '4', n: '4×' }], o.factor) + hint('Plain enlargement with a light sharpen — good for printing or slides. It does not invent new detail like an AI upscaler.'); break;
+    case 'watermark': o.text ??= ''; o.pos ??= 'center'; o.opacity ??= 'medium'; o.size ??= 'medium'; o.tile ??= false;
+      html += `<div class="field"><label for="f_wm">Text</label><input id="f_wm" data-opt="text" maxlength="60" placeholder="© Your name" value="${esc(o.text)}"></div>`
+        + `<div class="row"><span>Repeat across the whole picture</span>${sw('tile', o.tile)}</div>`
+        + (o.tile ? '' : `<div class="sub">Where</div>` + seg('pos', [{ v: 'center', n: 'Middle' }, { v: 'tl', n: 'Top left' }, { v: 'tr', n: 'Top right' }, { v: 'bl', n: 'Bottom left' }, { v: 'br', n: 'Bottom right' }], o.pos, 'slim'))
+        + `<div class="sub">Strength</div>` + seg('opacity', [{ v: 'light', n: 'Light' }, { v: 'medium', n: 'Medium' }, { v: 'strong', n: 'Strong' }], o.opacity, 'slim')
+        + `<div class="sub">Size</div>` + seg('size', [{ v: 'small', n: 'Small' }, { v: 'medium', n: 'Medium' }, { v: 'large', n: 'Large' }], o.size, 'slim');
+      break;
+    case 'meme': o.top ??= ''; o.bottom ??= '';
+      html += `<div class="field"><label for="f_top">Top line</label><input id="f_top" data-opt="top" maxlength="80" placeholder="WHEN THE FILE" value="${esc(o.top)}"></div><div class="field"><label for="f_bottom">Bottom line</label><input id="f_bottom" data-opt="bottom" maxlength="80" placeholder="IS FINALLY SMALL ENOUGH" value="${esc(o.bottom)}"></div>` + hint('Classic white capitals with a black outline. Long lines wrap onto two rows.'); break;
+    case 'blur': o.strength ??= 'normal';
+      html += seg('strength', [{ v: 'soft', n: 'Soft' }, { v: 'normal', n: 'Normal' }, { v: 'strong', n: 'Strong' }], o.strength) + hint('Faces are found on our server with a small open-source model; nothing is sent anywhere else. Faces seen from the side or very small ones can be missed, so check the result.'); break;
     default:
       html += `<div class="row"><span>Settings</span><b>None needed</b></div>` + hint(t.id === 'pdf-word' ? 'Text and layout are rebuilt into an editable Word file. Scanned PDFs need "Scan → Text" first.' : 'Word, Excel and PowerPoint files become PDFs that look like the printout.');
   }
@@ -341,7 +435,7 @@ function renderOpts(t) {
   // wire controls
   $$('#optin .seg').forEach(sg => sg.addEventListener('click', e => { const x = e.target.closest('button'); if (!x) return; o[sg.dataset.seg] = x.dataset.v; renderOpts(t); est(); }));
   $$('#optin [data-sw]').forEach(s => s.addEventListener('click', () => { o[s.dataset.sw] = !o[s.dataset.sw]; renderOpts(t); }));
-  $$('#optin [data-opt]').forEach(inp => inp.addEventListener('input', () => { o[inp.dataset.opt] = inp.value; inp.classList.remove('err'); if (inp.dataset.opt === 'text') $('#sigprev').textContent = inp.value; est(); }));
+  $$('#optin [data-opt]').forEach(inp => inp.addEventListener('input', () => { o[inp.dataset.opt] = inp.value; inp.classList.remove('err'); if (inp.dataset.opt === 'text' && $('#sigprev')) $('#sigprev').textContent = inp.value; est(); }));
   $$('#optin [data-lang]').forEach(c => c.addEventListener('change', () => { o.langs = $$('#optin [data-lang]:checked').map(x => x.dataset.lang); }));
   $('#pwShow')?.addEventListener('click', () => { const i = $('#f_pw'); i.type = i.type === 'password' ? 'text' : 'password'; $('#pwShow').textContent = i.type === 'password' ? 'Show' : 'Hide'; });
   if ($('#sigcv')) sigPad($('#sigcv'), o);
@@ -386,6 +480,9 @@ function validateOptions() {
   if (t === 'sign' && o.mode === 'text' && !(o.text || '').trim()) return bad('#f_text', 'Type the name to sign with');
   if (t === 'sign' && o.mode === 'image' && !o.image) return bad(null, 'Draw your signature first');
   if (t === 'ocr' && !(o.langs || []).length) return bad(null, 'Pick at least one language');
+  if (t === 'img-resize' && o.mode === 'pixels') { const okN = v => Number.isInteger(+v) && +v >= 1 && +v <= 10000; if (!okN(o.width)) return bad('#f_w', 'Width must be between 1 and 10000 pixels'); if (!okN(o.height)) return bad('#f_h', 'Height must be between 1 and 10000 pixels'); }
+  if (t === 'watermark' && !(o.text || '').trim()) return bad('#f_wm', 'Type the watermark text');
+  if (t === 'meme' && !(o.top || '').trim() && !(o.bottom || '').trim()) return bad('#f_top', 'Type a top line, a bottom line, or both');
   return true;
 }
 const serverOptions = () => { const { password2, ...rest } = opt(); return rest; };
@@ -468,24 +565,44 @@ async function showDone(id) {
   $('#sizes').hidden = $('#dBarWrap').hidden = !isC;
   const bar = $('#dBar'); bar.style.transition = 'none'; bar.style.transform = 'scaleX(1)'; requestAnimationFrame(() => { bar.style.transition = ''; bar.style.transform = `scaleX(${Math.max(.08, before ? after / before : 1)})`; });
   if (isC && pct > 0) { const t0 = performance.now(); (function c(now) { const q = Math.min(1, (now - t0) / 1400), e = 1 - Math.pow(1 - q, 3); const el = $('#dPct'); if (el) el.textContent = Math.round(pct * e) + '%'; if (q < 1) requestAnimationFrame(c); })(t0); }
-  $('#dl').href = `/api/jobs/${id}/download`; $('#dl').setAttribute('download', j.result.name);
+  $('#dl').href = `/api/jobs/${id}/download`; $('#dl').setAttribute('download', j.result.name); $('#dl').removeAttribute('aria-disabled');
+  // The file downloads by itself after 5 seconds (once per job), or straight away on a click.
+  const ring = $('#ring'), note = $('#dlNote'), cnt = $('#cnt'), fgc = $('#fgc');
+  clearInterval(S.cd); S.cd = null;
+  const saved = () => { ring.className = 'ring done'; $('#dlTxt').textContent = 'Download again'; note.className = 'dlnote ok'; note.innerHTML = '<b>Saved.</b> Look in your Downloads folder.'; S.autoDone.add(id); try { sessionStorage.setItem('fp-dl-' + id, '1'); } catch { /* private mode */ } clearInterval(S.cd); S.cd = null; };
+  let already = S.autoDone.has(id); try { already ||= !!sessionStorage.getItem('fp-dl-' + id); } catch { /* ignore */ }
+  if (already) saved();
+  else {
+    let left = 5; ring.className = 'ring'; $('#dlTxt').textContent = 'Download'; note.className = 'dlnote';
+    const paint = () => { cnt.textContent = left; fgc.style.strokeDashoffset = 88 * (1 - left / 5); note.innerHTML = `Starts by itself in <b>${left} s</b> — or click to get it now`; };
+    paint();
+    S.cd = setInterval(() => { if (--left > 0) return paint(); saved(); $('#dl').click(); }, 1000);
+  }
+  $('#dl').onclick = () => { if (!S.autoDone.has(id)) saved(); };
   // chaining: only when the result can be an input again
-  const chainable = !!kindOf(j.result.name);
-  $('.next').hidden = !chainable;
-  if (chainable) fillTiles($('#tiles2'), x => `#work/${x.id}`, x => (serverTool(x.id)?.accepts === kindOf(j.result.name) ? '' : ' dim'));
+  const rk = kindOf(j.result.name), chainable = !!rk;
+  $('#chainwrap').hidden = !chainable;
+  if (chainable) {
+    $('#chipK').textContent = rk === 'image' ? extOf(j.result.name).toUpperCase() : rk === 'pdf' ? 'PDF' : 'DOC'; $('#chipK').className = `k ${rk}`;
+    $('#chipName').textContent = j.result.name; $('#chipSize').textContent = `· ${fmt(after)}`;
+    const fits2 = x => { const a = serverTool(x.id)?.accepts || x.accepts; return a === rk || (rk === 'office' && a === 'pdf' && x.id !== 'pdf-word'); };
+    fillTiles($('#tiles2'), x => `#work/${x.id}`, x => (fits2(x) ? '' : ' dim'), TOOLS.filter(fits2));
+  }
   // the result can be previewed too: fetch it once (it is ours) so the next job shows its first page
   let chainedFile = null;
   if (chainable) fetch(`/api/jobs/${id}/download`).then(r => r.ok ? r.blob() : null).then(b => { if (b) chainedFile = new File([b], j.result.name); }).catch(() => {});
-  $$('#tiles2 .tile').forEach(el => el.addEventListener('click', () => { S.fromJob = { id, name: j.result.name, size: after, file: chainedFile }; S.files = []; S.opts = {}; }));
+  $$('#tiles2 .tile').forEach(el => el.addEventListener('click', () => { S.fromJob = { id, name: j.result.name, size: after, file: chainedFile }; S.files = []; S.opts = {}; S.showAll = false; }));
   clearInterval(S.timer);
   const paint = () => { const left = Math.max(0, Math.round((j.expiresAt - Date.now()) / 1000)); $('#tmr').textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`; if (!left) clearInterval(S.timer); };
   paint(); S.timer = setInterval(paint, 1000);
 }
 $('#del').addEventListener('click', async () => {
   if (!S.job) return;
-  const r = await fetch(`/api/jobs/${S.job.id}`, { method: 'DELETE' });
+  clearInterval(S.cd); S.cd = null; S.autoDone.add(S.job.id);   // never auto-download something the user just deleted
+  const jobId = S.job.id;
+  const r = await fetch(`/api/jobs/${jobId}`, { method: 'DELETE' }).catch(() => ({ ok: false, status: 0 }));
   toast(r.ok || r.status === 404 ? 'Wiped. Nothing of it remains on the server.' : 'Could not delete right now.');
-  if (r.ok || r.status === 404) { clearInterval(S.timer); $('#tmr').textContent = '00:00'; setTimeout(() => { location.hash = '#start'; }, 1200); }
+  if (r.ok || r.status === 404) { clearInterval(S.timer); $('#tmr').textContent = '00:00'; $('#dl').setAttribute('aria-disabled', 'true'); setTimeout(() => { if (location.hash === `#done/${jobId}`) location.hash = '#start'; }, 1200); }
 });
 
 /* ---------- toast ---------- */

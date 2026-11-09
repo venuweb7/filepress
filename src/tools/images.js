@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import { run, ToolError } from '../run.js';
 import { config } from '../config.js';
-import { assertPages, baseOf, checkKind, inPath, listDir, outPath, pdfProbe, pick, timeouts, tmpPath, zipFiles } from './common.js';
+import { assertPages, baseOf, checkKind, inPath, listDir, outPath, pdfProbe, pick, pictureProbe, timeouts, tmpPath, zipFiles } from './common.js';
 
 const MAX_PIXELS = 40e6; // per rendered page
 
@@ -37,8 +37,12 @@ export const jpgToPdf = {
     for (const [i, f] of job.files.entries()) {
       report(10 + Math.round(60 * i / job.files.length), `Preparing picture ${i + 1} of ${job.files.length}`);
       let src = inPath(dir, f);
+      await pictureProbe(src, dir);   // size and frame limits
+      // Anything but JPG/PNG is re-saved as a PNG first (first frame only, camera rotation applied), so img2pdf never
+      // sees animated GIFs, 16-bit TIFFs or formats it does not know.
+      if (!/\.(jpe?g|png)$/i.test(f.stored)) { const png = tmpPath(dir, `${i}-conv.png`); await run('convert', [`${src}[0]`, '-auto-orient', png], { cwd: dir, timeoutSec: timeouts.normal() }); src = png; }
       // img2pdf refuses pictures with transparency; flatten those onto white first.
-      if (/\.png$/i.test(f.stored)) {
+      if (/\.png$/i.test(src)) {
         const { out: alpha } = await run('identify', ['-format', '%A', src], { cwd: dir, timeoutSec: 60, memMb: 1024 });
         if (/true|blend/i.test(alpha)) { const flat = tmpPath(dir, `${i}-flat.png`); await run('convert', [src, '-background', 'white', '-alpha', 'remove', '-alpha', 'off', flat], { cwd: dir, timeoutSec: 120 }); src = flat; }
       }

@@ -46,6 +46,9 @@ async function makeFixtures() {
   // A Word file: let LibreOffice turn a .txt into .docx.
   await fs.writeFile(path.join(FIX, 'memo.txt'), 'Filepress memo\n\nThis Word document was generated for the test suite.\n');
   run('soffice', ['--headless', '--norestore', `-env:UserInstallation=file://${path.join(TMP, 'lo')}`, '--convert-to', 'docx:MS Word 2007 XML', '--outdir', FIX, path.join(FIX, 'memo.txt')]);
+  // Pictures in the other formats the picture tools take.
+  run('convert', [path.join(FIX, 'noise.jpg'), '-resize', '50%', path.join(FIX, 'photo.webp')]);
+  run('convert', [path.join(FIX, 'noise.jpg'), '-resize', '25%', path.join(FIX, 'anim.gif')]);
   // A junk file that claims to be a PDF.
   await fs.writeFile(path.join(FIX, 'fake.pdf'), 'this is not a pdf at all');
 }
@@ -109,7 +112,7 @@ after(() => { server?.kill('SIGTERM'); });
 test('locked by default, unlock with the code, wrong code refused', async () => {
   const s = await (await api('GET', '/api/session')).json();
   assert.equal(s.locked, true);
-  assert.ok(Array.isArray(s.tools) && s.tools.length === 12);
+  assert.ok(Array.isArray(s.tools) && s.tools.length === 22);
   const bad = await api('POST', '/api/unlock', JSON.stringify({ code: 'nope' }), { 'content-type': 'application/json' });
   assert.equal(bad.status, 401);
   const locked = await submit('compress', ['text.pdf']);
@@ -125,7 +128,7 @@ test('security headers and static app', async () => {
   assert.equal(r.status, 200);
   assert.match(r.headers.get('content-security-policy'), /default-src 'self'/);
   assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
-  assert.match(await r.text(), /Drop a PDF/);
+  assert.match(await r.text(), /Drop a file/);
 });
 
 test('rejects a fake PDF, unknown tools and bad options', async () => {
@@ -229,6 +232,55 @@ test('Office -> PDF and PDF -> Word', { timeout: 300_000 }, async () => {
   const d = await runTool('pdf-word', ['text.pdf'], {});
   assert.match(d.job.result.name, /\.docx$/);
   assert.equal((await fs.readFile(d.out)).subarray(0, 2).toString(), 'PK');
+});
+
+test('picture tools: compress, resize, crop, convert, rotate, upscale, watermark, meme, blur faces', { timeout: 300_000 }, async () => {
+  const dims = f => run('identify', ['-format', '%w %h %m', f + '[0]']);
+  const c = await runTool('img-compress', ['noise.jpg'], { level: 'smallest' });
+  assert.ok((await fs.stat(c.out)).size < (await fs.stat(path.join(FIX, 'noise.jpg'))).size, 'compressed JPG is smaller');
+  assert.match(c.job.result.name, /-compressed\.jpg$/);
+  const batch = await runTool('img-compress', ['noise.jpg', 'alpha.png'], { level: 'balanced' });
+  assert.equal(batch.job.result.count, 2); assert.match(batch.job.result.name, /\.zip$/);
+  const r = await runTool('img-resize', ['noise.jpg'], { mode: 'pixels', width: 300, height: 300 });
+  assert.equal(dims(r.out), '300 214 JPEG');
+  const r2 = await runTool('img-resize', ['noise.jpg'], { mode: 'percent', percent: 50 });
+  assert.equal(dims(r2.out), '700 500 JPEG');
+  const cr = await runTool('img-crop', ['noise.jpg'], { mode: 'ratio', ratio: 'square', from: 'left' });
+  assert.equal(dims(cr.out), '1000 1000 JPEG');
+  const tj = await runTool('to-jpg', ['photo.webp'], { quality: '90' });
+  assert.equal(dims(tj.out), '700 500 JPEG'); assert.equal(tj.job.result.name, 'photo.jpg');
+  const tj2 = await runTool('to-jpg', ['alpha.png'], {});
+  assert.equal(dims(tj2.out), '300 200 JPEG');
+  const fj = await runTool('from-jpg', ['noise.jpg'], { format: 'webp' });
+  assert.equal(dims(fj.out), '1400 1000 WEBP');
+  const ro = await runTool('img-rotate', ['noise.jpg'], { turn: '90' });
+  assert.equal(dims(ro.out), '1000 1400 JPEG');
+  const up = await runTool('upscale', ['anim.gif'], { factor: '2' });
+  assert.equal(dims(up.out), '700 500 GIF');
+  const wm = await runTool('watermark', ['noise.jpg'], { text: '© test 100% @home', pos: 'br', opacity: 'strong', size: 'large' });
+  assert.match(wm.job.result.name, /-watermarked\.jpg$/); assert.ok((await fs.stat(wm.out)).size > 1000);
+  const mm = await runTool('meme', ['noise.jpg'], { top: 'when the test', bottom: 'passes first time' });
+  assert.equal(dims(mm.out), '1400 1000 JPEG');
+  const bl = await runTool('blur', ['noise.jpg'], { strength: 'normal' });
+  assert.match(bl.job.result.note, /No faces/); assert.equal(dims(bl.out), '1400 1000 JPEG');
+  // refusals: bad numbers, empty text, a picture tool given a PDF, a 4x upscale that would be too big
+  const badW = await submit('img-resize', ['noise.jpg'], { mode: 'pixels', width: 'abc', height: 10 });
+  assert.equal(badW.status, 400); assert.match((await badW.json()).error, /Width must be/);
+  const noText = await submit('watermark', ['noise.jpg'], { text: '   ' });
+  assert.equal(noText.status, 400);
+  const wrongKind = await submit('img-compress', ['text.pdf'], {});
+  assert.equal(wrongKind.status, 202); assert.equal((await waitDone((await wrongKind.json()).id)).status, 'error');
+  const huge = await submit('upscale', ['noise.jpg'], { factor: '4' });   // 1400x1000 x16 = 22 MP, allowed; check it runs
+  assert.equal(huge.status, 202); assert.equal((await waitDone((await huge.json()).id)).status, 'done');
+});
+
+test('a PDF tool given a Word file turns it into a PDF first', { timeout: 300_000 }, async () => {
+  const j = await runTool('compress', ['memo.docx'], { level: 'balanced' });
+  assert.match(j.job.result.name, /memo-compressed\.pdf$/);
+  assert.equal(pages(j.out), 1); assert.match(text(j.out), /Filepress memo/);
+  // but Office -> PDF itself, and a picture tool, do not get this treatment
+  const pic = await submit('img-compress', ['memo.docx'], {});
+  assert.equal((await waitDone((await pic.json()).id)).status, 'error');
 });
 
 test('chaining feeds a result into the next tool; delete wipes it; other sessions cannot see it', async () => {

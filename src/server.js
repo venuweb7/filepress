@@ -100,10 +100,16 @@ app.post('/api/unlock', unlockPerIp, unlockGlobal, express.json({ limit: '2kb' }
 const kindOfExt = ext => Object.keys(KINDS).find(k => KINDS[k].exts.includes(ext)) || null;
 const isZip = b => b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
 const isOle = b => b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0;
+const isHeif = b => b.subarray(4, 8).toString('latin1') === 'ftyp' && ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1', 'heim', 'heis'].includes(b.subarray(8, 12).toString('latin1'));
 const MAGIC = {
   pdf: b => b.subarray(0, 5).toString('latin1') === '%PDF-',
   jpg: b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff, jpeg: b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
   png: b => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  gif: b => b.subarray(0, 4).toString('latin1') === 'GIF8',
+  webp: b => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP',
+  bmp: b => b[0] === 0x42 && b[1] === 0x4d,
+  tif: b => ['II*\0', 'MM\0*'].includes(b.subarray(0, 4).toString('latin1')), tiff: b => ['II*\0', 'MM\0*'].includes(b.subarray(0, 4).toString('latin1')),
+  heic: b => isHeif(b), heif: b => isHeif(b),
   docx: isZip, xlsx: isZip, pptx: isZip, odt: isZip, ods: isZip, odp: isZip,
   doc: isOle, xls: isOle, ppt: isOle,
   rtf: b => b.subarray(0, 5).toString('latin1') === '{\\rtf',
@@ -111,7 +117,7 @@ const MAGIC = {
 };
 async function sniff(file) {
   const fh = await fs.open(file, 'r');
-  try { const b = Buffer.alloc(8); const { bytesRead } = await fh.read(b, 0, 8, 0); return b.subarray(0, bytesRead); } finally { await fh.close(); }
+  try { const b = Buffer.alloc(16); const { bytesRead } = await fh.read(b, 0, 16, 0); return b.subarray(0, bytesRead); } finally { await fh.close(); }
 }
 
 const upload = multer({

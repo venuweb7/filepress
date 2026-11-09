@@ -9,14 +9,17 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # LibreOffice (Office -> PDF), OCRmyPDF + Tesseract eng/tel (Scan -> Text), img2pdf + ImageMagick (pictures),
 # pdf2docx (PDF -> Word), util-linux for prlimit, coreutils timeout, sudo for the user switch, dumb-init as PID 1.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ghostscript qpdf poppler-utils img2pdf imagemagick \
+      ghostscript qpdf poppler-utils img2pdf imagemagick libmagickcore-6.q16-6-extra \
       ocrmypdf tesseract-ocr-eng tesseract-ocr-tel \
       libreoffice-writer libreoffice-calc libreoffice-impress \
       fonts-liberation fonts-dejavu-core fonts-noto-core \
       python3 python3-pip libglib2.0-0 util-linux sudo dumb-init ca-certificates \
     && pip3 install --no-cache-dir "pdf2docx==0.5.13" "pymupdf==2.1" "numpy==2.3.5" "opencv-python-headless==5.0.0.93" \
     && python3 -c "import pdf2docx, numpy, cv2, fitz" \
-    && apt-get purge -y python3-pip && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get purge -y python3-pip && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    # the picture tools need these readers, and Debian's ImageMagick policy must keep blocking PS/PDF coders and @file reads
+    && convert -list format | grep -q HEIC && convert -list format | grep -q WEBP \
+    && convert -list policy | grep -q 'pattern: @\*' && convert -list policy | grep -qE 'pattern: (PS|\{PS,PS2,PS3,EPS,PDF,XPS\})'
 
 # Two unprivileged users: "app" runs the web server, "worker" runs the converters (via sudo, see deploy/sudoers-filepress).
 # They share the "jobs" group; job folders are group-writable thanks to the setgid bit on /data/jobs.
