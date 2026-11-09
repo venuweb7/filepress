@@ -90,7 +90,7 @@ h1{margin:0;font:700 clamp(30px,3.8vw,48px)/1.02 var(--fd);letter-spacing:-.035e
 .drop h2 u{text-decoration:none;color:var(--acc)}
 .drop p{margin:6px 0 0;color:var(--tx3);font-size:13px;font-weight:500}
 .quick{margin:64px auto 0;max-width:1060px}
-.qhead{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px;flex-wrap:wrap}
+.qhead{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:12px}
 .quick .lbl{font-weight:600;font-size:13px;color:var(--tx3)}
 .tabs{display:inline-flex;padding:4px;border-radius:999px;background:var(--sur);border:1px solid var(--line);box-shadow:0 6px 20px -14px rgba(15,23,42,.3)}
 .tabs button{height:38px;padding:0 18px;border-radius:999px;font-weight:700;font-size:14px;color:var(--tx2);display:inline-flex;align-items:center;gap:8px;transition:all .3s var(--ease)}
@@ -120,14 +120,14 @@ h1{margin:0;font:700 clamp(30px,3.8vw,48px)/1.02 var(--fd);letter-spacing:-.035e
 
 /* short laptop screens (768 px tall and less): tighten the top so both tool rows still fit */
 @media (min-width:721px) and (max-height:800px){
-  .hero{padding-top:12px;padding-bottom:50px}
+  .hero{padding-top:12px;padding-bottom:44px}
   h1{font-size:clamp(28px,3.2vw,40px)}
   .hero p{margin-top:6px;font-size:14px}
   .drop{padding:18px 28px 18px}
   .docs{height:56px;margin-bottom:8px}.docs i{width:42px;height:52px}.docs i:nth-child(2){width:46px;height:58px}
   .drop h2{font-size:19px}
-  .quick{margin-top:52px}
-  .qhead{margin-bottom:8px}
+  .quick{margin-top:34px}
+  .qhead{gap:6px;margin-bottom:8px}
   .trust{margin-top:18px}
 }
 
